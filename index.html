@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pronounce Helper - Read Confidently</title>
+  
+  <!-- SEO Meta Tags -->
+  <meta name="description" content="An interactive mobile-first web app to help English learners and weak readers identify, hear, and pronounce words from book pages using OCR and TTS.">
+  <meta name="theme-color" content="#4f46e5">
+
+  <!-- Google Fonts: Outfit (headings) & Inter (body) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <!-- Stylesheets -->
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body class="theme-light">
+  
+  <div class="app-container">
+    
+    <!-- HEADER -->
+    <header class="app-header">
+      <div class="header-logo">
+        <div class="logo-icon">
+          <i class="fa-solid fa-microphone-lines"></i>
+        </div>
+        <h1>Pronounce Helper</h1>
+      </div>
+      <div class="header-actions">
+        <button id="btn-theme-toggle" class="header-btn" title="Toggle Theme" aria-label="Toggle Theme">
+          <i class="fa-solid fa-moon"></i>
+        </button>
+        <button id="btn-history" class="header-btn" title="History" aria-label="View history">
+          <i class="fa-solid fa-history"></i>
+        </button>
+        <button id="btn-bookmarks" class="header-btn" title="Saved Words" aria-label="View saved words">
+          <i class="fa-solid fa-bookmark"></i>
+        </button>
+      </div>
+    </header>
+
+    <!-- MAIN CONTENT -->
+    <main class="app-main">
+      
+      <!-- WELCOME / UPLOAD SCREEN -->
+      <section id="screen-welcome" class="app-screen active">
+        <div class="welcome-card card">
+          <div class="welcome-hero-image">
+            <i class="fa-solid fa-book-open-reader"></i>
+          </div>
+          <h2>Master Your Reading</h2>
+          <p class="welcome-subtitle">Take a photo of any book page, tap any word you don't know, and hear it pronounced instantly.</p>
+          
+          <div class="upload-options">
+            <label for="camera-input" class="upload-btn primary-btn">
+              <i class="fa-solid fa-camera"></i>
+              <span>Take Photo</span>
+              <input type="file" id="camera-input" accept="image/*" capture="environment" class="hidden-input">
+            </label>
+            
+            <label for="file-input" class="upload-btn secondary-btn">
+              <i class="fa-solid fa-image"></i>
+              <span>Upload from Gallery</span>
+              <input type="file" id="file-input" accept="image/*" class="hidden-input">
+            </label>
+            
+            <button id="btn-demo" class="upload-btn demo-btn">
+              <i class="fa-solid fa-magic-wand-sparkles"></i>
+              <span>Try with a Demo Page</span>
+            </button>
+          </div>
+          
+          <div class="features-list">
+            <div class="feature-item">
+              <i class="fa-solid fa-bolt"></i>
+              <div>
+                <h3>Tap-to-Hear</h3>
+                <p>Click any word directly on the page image to listen to it.</p>
+              </div>
+            </div>
+            <div class="feature-item">
+              <i class="fa-solid fa-spell-check"></i>
+              <div>
+                <h3>Syllable Guides</h3>
+                <p>See words broken down into chunks (like <strong>syl · la · ble</strong>).</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- OCR SCANNING & INTERACTIVE CANVAS SCREEN -->
+      <section id="screen-scan" class="app-screen">
+        <div class="scan-container card">
+          
+          <!-- Loading / OCR Progress Panel -->
+          <div id="ocr-loading-panel" class="ocr-loading-overlay hidden">
+            <div class="spinner-container">
+              <div class="double-bounce1"></div>
+              <div class="double-bounce2"></div>
+            </div>
+            <p id="ocr-status-text">Preparing reading engine...</p>
+            <div class="progress-bar-container">
+              <div id="ocr-progress-bar" class="progress-bar" style="width: 0%;"></div>
+            </div>
+            <span id="ocr-progress-pct">0%</span>
+          </div>
+
+          <!-- Active Workspace Image Display -->
+          <div class="workspace-viewport">
+            <div id="image-wrap" class="image-wrapper">
+              <img id="source-image" src="" alt="Book Page Source">
+              <!-- Scanner Bar Micro-animation -->
+              <div id="scanner-line" class="scanner-line hidden"></div>
+              <!-- Absolute interactive overlay containing word nodes -->
+              <div id="word-overlay-container" class="word-overlay"></div>
+            </div>
+          </div>
+
+          <!-- Controls under the workspace -->
+          <div class="workspace-controls">
+            <button id="btn-rotate-left" class="control-btn" title="Rotate Counterclockwise">
+              <i class="fa-solid fa-rotate-left"></i>
+              <span>Rotate L</span>
+            </button>
+            <button id="btn-rotate-right" class="control-btn" title="Rotate Clockwise">
+              <i class="fa-solid fa-rotate-right"></i>
+              <span>Rotate R</span>
+            </button>
+            <button id="btn-adjust-image" class="control-btn" title="Image Settings">
+              <i class="fa-solid fa-sliders"></i>
+              <span>Filters</span>
+            </button>
+            <button id="btn-upload-new" class="control-btn accent" title="Scan New Page">
+              <i class="fa-solid fa-arrow-up-from-bracket"></i>
+              <span>New Scan</span>
+            </button>
+          </div>
+
+          <!-- Image Adjustments Drawer (Grayscale, Brightness, Contrast, Rotation/Tilt) -->
+          <div id="image-adjustments-panel" class="adjustments-panel hidden">
+            <div class="panel-header">
+              <h3>Image Enhancer & Rotator</h3>
+              <button id="btn-close-adjustments"><i class="fa-solid fa-times"></i></button>
+            </div>
+            <div class="adjustment-sliders">
+              <!-- Rotation/Tilt correction -->
+              <div class="slider-group">
+                <label for="slider-rotation">Tilt/Rotate</label>
+                <input type="range" id="slider-rotation" min="-180" max="180" value="0">
+                <span id="val-rotation">0°</span>
+              </div>
+              <div class="slider-group">
+                <label for="slider-contrast">Contrast</label>
+                <input type="range" id="slider-contrast" min="50" max="200" value="100">
+                <span id="val-contrast">100%</span>
+              </div>
+              <div class="slider-group">
+                <label for="slider-brightness">Brightness</label>
+                <input type="range" id="slider-brightness" min="50" max="150" value="100">
+                <span id="val-brightness">100%</span>
+              </div>
+              <div class="filter-toggles">
+                <label class="toggle-container">
+                  <input type="checkbox" id="chk-grayscale">
+                  <span class="checkmark"></span>
+                  Black & White Filter
+                </label>
+              </div>
+              <button id="btn-apply-filters" class="apply-filters-btn">
+                <i class="fa-solid fa-wand-magic-sparkles"></i> Apply & Reprocess
+              </button>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+    </main>
+
+    <!-- SIDE DRAWER FOR HISTORY & BOOKMARKS -->
+    <div id="sidebar-drawer" class="sidebar-drawer hidden">
+      <div class="sidebar-overlay" id="sidebar-bg-overlay"></div>
+      <div class="sidebar-content">
+        <div class="sidebar-header">
+          <h2 id="sidebar-title">History</h2>
+          <button id="btn-close-sidebar" class="sidebar-close"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div class="sidebar-body">
+          <div class="sidebar-empty-state" id="sidebar-empty">
+            <i class="fa-solid fa-folder-open"></i>
+            <p>No words saved yet.</p>
+          </div>
+          <ul id="sidebar-list" class="words-list">
+            <!-- Dynamically populated -->
+          </ul>
+        </div>
+        <div class="sidebar-footer">
+          <button id="btn-clear-list" class="clear-list-btn">
+            <i class="fa-solid fa-trash-can"></i> Clear All
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- TOAST NOTIFICATION CONTAINER -->
+    <div id="toast-container" class="toast-container"></div>
+
+  </div>
+
+  <!-- WORD DETAILS BOTTOM DRAWER (ZOOM-IMMUNE MODAL) -->
+  <div id="word-detail-drawer" class="bottom-drawer hidden">
+    <div class="drawer-overlay" id="drawer-bg-overlay"></div>
+    <div id="drawer-scale-wrapper" class="drawer-scale-wrapper">
+      <div class="drawer-content">
+        
+        <!-- Drag Handle Indicator for Mobile feel -->
+        <div class="drag-handle"></div>
+        
+        <div class="drawer-header">
+          <div class="word-pronounce-title">
+            <h2 id="detail-word">Word</h2>
+            <span id="detail-phonetics" class="detail-phonetics-inline">/sɪləbəl/</span>
+            <button id="btn-speak" class="speak-btn" title="Speak Aloud">
+              <i class="fa-solid fa-volume-high"></i>
+            </button>
+          </div>
+          <div class="drawer-actions">
+            <button id="btn-bookmark-word" class="drawer-action-btn" title="Save Word">
+              <i class="fa-regular fa-bookmark"></i>
+            </button>
+            <button id="btn-close-drawer" class="drawer-action-btn close" title="Close">
+              <i class="fa-solid fa-xmark"></i>
+            </button>
+          </div>
+        </div>
+
+        <div class="drawer-body">
+          <div class="meta-row">
+            <div class="syllables-col">
+              <i class="fa-solid fa-scissors"></i>
+              <span class="label">Syllables:</span>
+              <span id="detail-syllables">syl · la · ble</span>
+            </div>
+            <div class="speed-col">
+              <span class="label">Speed:</span>
+              <div class="speed-buttons">
+                <button class="speed-btn-chip" data-speed="0.6">Very Slow</button>
+                <button class="speed-btn-chip active" data-speed="0.8">Slow</button>
+                <button class="speed-btn-chip" data-speed="1.0">Normal</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- English Definition (Secondary) -->
+          <div class="definition-section">
+            <div class="definition-header">
+              <i class="fa-solid fa-book"></i>
+              <h4>Definition</h4>
+            </div>
+            <p id="detail-definition" class="def-text">A unit of pronunciation having one vowel sound, with or without surrounding consonants, forming the whole or a part of a word.</p>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+  <script src="syllables.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
