@@ -836,18 +836,32 @@ button, input, select {
   display: none !important;
 }
 
+.drawer-top-ribbon {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  width: 100%;
+  margin-bottom: 8px;
+  flex-shrink: 0;
+}
+
 .drawer-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 16px;
+  gap: 16px;
   flex-shrink: 0;
+  width: 100%;
 }
 
 .word-pronounce-title {
   display: flex;
-  align-items: center;
-  gap: 12px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
 }
 
 #detail-word {
@@ -856,6 +870,11 @@ button, input, select {
   font-size: 1.75rem;
   letter-spacing: -0.5px;
   color: var(--text-primary);
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  word-break: break-word;
+  max-width: 100%;
+  line-height: 1.2;
 }
 
 .speak-btn {
