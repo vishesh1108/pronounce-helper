@@ -256,6 +256,36 @@
     return result;
   }
 
+  // Helper to preserve casing, hyphens, and apostrophes in the final syllables
+  function reconstructOriginal(originalWord, syllableList) {
+    const result = [];
+    let originalIdx = 0;
+    
+    for (let i = 0; i < syllableList.length; i++) {
+      const syl = syllableList[i];
+      let restoredSyl = "";
+      let lettersMatched = 0;
+      const lettersNeeded = syl.replace(/[^a-zA-Z]/g, "").length;
+      
+      while (lettersMatched < lettersNeeded && originalIdx < originalWord.length) {
+        const char = originalWord[originalIdx];
+        restoredSyl += char;
+        originalIdx++;
+        if (/[a-zA-Z]/.test(char)) {
+          lettersMatched++;
+        }
+      }
+      result.push(restoredSyl);
+    }
+    
+    // Append any trailing leftovers
+    if (originalIdx < originalWord.length) {
+      result[result.length - 1] += originalWord.substring(originalIdx);
+    }
+    
+    return result;
+  }
+
   /**
    * Main split function
    * @param {string} word - The word to split
@@ -263,6 +293,9 @@
    */
   function splitWord(word) {
     if (!word || typeof word !== "string") return "";
+    
+    // Fast path: if the word contains no alphabetic letters, do not process
+    if (!/[a-zA-Z]/.test(word)) return word;
     
     // Strip trailing punctuation from word for analysis, but keep track of it
     const matchStart = word.match(/^[^a-zA-Z]*/);
@@ -275,7 +308,8 @@
     if (coreWord.length === 0) return word;
 
     const parts = splitSyllablesAlgorithmic(coreWord);
-    return prefix + parts.join(" · ") + suffix;
+    const alignedParts = reconstructOriginal(coreWord, parts);
+    return prefix + alignedParts.join(" · ") + suffix;
   }
 
   // Export to global scope

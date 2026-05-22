@@ -593,6 +593,13 @@ button, input, select {
   transform: scale(0.95);
 }
 
+.control-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+
 /* Image Adjustments Panel Drawer */
 .adjustments-panel {
   position: absolute;

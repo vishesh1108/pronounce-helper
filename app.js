@@ -49,7 +49,6 @@ document.addEventListener("DOMContentLoaded", () => {
     screenScan: document.getElementById("screen-scan"),
     
     // File inputs & buttons
-    cameraInput: document.getElementById("camera-input"),
     fileInput: document.getElementById("file-input"),
     btnDemo: document.getElementById("btn-demo"),
     btnUploadNew: document.getElementById("btn-upload-new"),
@@ -156,7 +155,6 @@ document.addEventListener("DOMContentLoaded", () => {
     el.btnThemeToggle.addEventListener("click", toggleTheme);
     
     // Welcome / Inputs
-    el.cameraInput.addEventListener("change", handleImageUpload);
     el.fileInput.addEventListener("change", handleImageUpload);
     el.btnDemo.addEventListener("click", loadDemoImage);
     el.btnUploadNew.addEventListener("click", resetToWelcome);
@@ -170,6 +168,22 @@ document.addEventListener("DOMContentLoaded", () => {
     });
     el.btnCloseAdjustments.addEventListener("click", () => {
       el.imageAdjustmentsPanel.classList.add("hidden");
+      // Restore active processed image and overlays
+      if (state.processedImageSrc) {
+        el.sourceImage.src = state.processedImageSrc;
+        // Reset sliders UI to actual state
+        el.sliderContrast.value = state.filters.contrast;
+        el.valContrast.innerText = `${state.filters.contrast}%`;
+        el.sliderBrightness.value = state.filters.brightness;
+        el.valBrightness.innerText = `${state.filters.brightness}%`;
+        el.chkGrayscale.checked = state.filters.grayscale;
+        el.sliderRotation.value = state.rotation;
+        el.valRotation.innerText = `${state.rotation}°`;
+        
+        if (state.ocrWords.length > 0) {
+          drawWordOverlays(state.ocrWords);
+        }
+      }
     });
     
     // Slider values updating
@@ -355,9 +369,6 @@ document.addEventListener("DOMContentLoaded", () => {
     const processedDataUrl = applyImageAdjustments(imageEl, state.rotation, state.filters);
     state.processedImageSrc = processedDataUrl;
     
-    // 2. Set src of sourceImage
-    el.sourceImage.src = processedDataUrl;
-    
     // Clear old overlays
     el.wordOverlayContainer.innerHTML = "";
     
@@ -368,6 +379,9 @@ document.addEventListener("DOMContentLoaded", () => {
       // Remove onload handler to avoid infinite loops
       el.sourceImage.onload = null;
     };
+
+    // 2. Set src of sourceImage
+    el.sourceImage.src = processedDataUrl;
   }
 
   function applyImageAdjustments(imageEl, rotationAngle, filters) {
@@ -578,9 +592,19 @@ document.addEventListener("DOMContentLoaded", () => {
     if (show) {
       el.ocrLoadingPanel.classList.remove("hidden");
       el.scannerLine.classList.remove("hidden");
+      // Disable workspace actions while scanning
+      el.btnRotateLeft.disabled = true;
+      el.btnRotateRight.disabled = true;
+      el.btnAdjustImage.disabled = true;
+      el.btnUploadNew.disabled = true;
     } else {
       el.ocrLoadingPanel.classList.add("hidden");
       el.scannerLine.classList.add("hidden");
+      // Re-enable actions after scanning completes
+      el.btnRotateLeft.disabled = false;
+      el.btnRotateRight.disabled = false;
+      el.btnAdjustImage.disabled = false;
+      el.btnUploadNew.disabled = false;
     }
   }
 
@@ -765,7 +789,10 @@ document.addEventListener("DOMContentLoaded", () => {
       utterance.lang = indianVoice.lang;
     }
 
-    window.speechSynthesis.speak(utterance);
+    // Small delay to allow the engine to cancel the previous utterance cleanly
+    setTimeout(() => {
+      window.speechSynthesis.speak(utterance);
+    }, 50);
   }
 
   // Speak voice list update triggers
