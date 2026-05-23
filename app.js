@@ -16,6 +16,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // --- STATE ---
   const state = {
     username: localStorage.getItem("ph_username") || "",
+    deferredPrompt: null,       // Stashed PWA install prompt event
     originalImage: null,        // Original Image element (pre-processed)
     ocrSourceImage: null,       // Scaled down image for OCR (max 1200px)
     previewSourceImage: null,   // Scaled down image for quick live preview (max 600px)
@@ -61,6 +62,13 @@ document.addEventListener("DOMContentLoaded", () => {
     formOnboarding: document.getElementById("form-onboarding"),
     inputUsername: document.getElementById("input-username"),
     headerUserGreeting: document.getElementById("header-user-greeting"),
+    
+    // Install Modal
+    installModal: document.getElementById("install-modal"),
+    installBgOverlay: document.getElementById("install-bg-overlay"),
+    btnInstallApp: document.getElementById("btn-install-app"),
+    iosInstallGuide: document.getElementById("ios-install-guide"),
+    btnCloseInstall: document.getElementById("btn-close-install"),
     
     // File inputs & buttons
     fileInput: document.getElementById("file-input"),
@@ -168,6 +176,27 @@ document.addEventListener("DOMContentLoaded", () => {
   function setupEventListeners() {
     // Theme toggle
     el.btnThemeToggle.addEventListener("click", toggleTheme);
+    
+    // Capture PWA installation prompts
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      state.deferredPrompt = e;
+      
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.has('install') && !isRunningStandalone()) {
+        showInstallPrompt();
+      }
+    });
+
+    if (el.btnInstallApp) {
+      el.btnInstallApp.addEventListener("click", handleInstallAppClick);
+    }
+    if (el.btnCloseInstall) {
+      el.btnCloseInstall.addEventListener("click", () => el.installModal.classList.add("hidden"));
+    }
+    if (el.installBgOverlay) {
+      el.installBgOverlay.addEventListener("click", () => el.installModal.classList.add("hidden"));
+    }
     
     // Onboarding Form Submit
     if (el.formOnboarding) {
@@ -1007,6 +1036,13 @@ document.addEventListener("DOMContentLoaded", () => {
   // --- PERSONALIZATION & ONBOARDING ---
   function initOnboarding() {
     state.username = localStorage.getItem("ph_username") || "";
+    
+    // Check if user clicked a deep install link
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.has('install') && !isRunningStandalone()) {
+      showInstallPrompt();
+    }
+
     if (!state.username) {
       el.headerUserGreeting.innerText = "Welcome! 👋";
       switchScreen("onboarding");
@@ -1014,6 +1050,37 @@ document.addEventListener("DOMContentLoaded", () => {
       updateGreetingHeader();
       switchScreen("welcome");
     }
+  }
+
+  function isRunningStandalone() {
+    return window.matchMedia('(display-mode: standalone)').matches || 
+           window.navigator.standalone || 
+           document.referrer.includes('android-app://');
+  }
+
+  function showInstallPrompt() {
+    if (!el.installModal) return;
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+    el.installModal.classList.remove("hidden");
+    if (isIOS) {
+      el.btnInstallApp.classList.add("hidden");
+      el.iosInstallGuide.classList.remove("hidden");
+    } else {
+      el.btnInstallApp.classList.remove("hidden");
+      el.iosInstallGuide.classList.add("hidden");
+    }
+  }
+
+  async function handleInstallAppClick() {
+    if (!state.deferredPrompt) {
+      showToast("Installation is ready in your browser's menu.");
+      return;
+    }
+    state.deferredPrompt.prompt();
+    const { outcome } = await state.deferredPrompt.userChoice;
+    console.log(`[PWA] Install decision: ${outcome}`);
+    state.deferredPrompt = null;
+    el.installModal.classList.add("hidden");
   }
 
   function updateGreetingHeader() {

@@ -305,6 +305,36 @@
     </div>
   </div>
 
+  <!-- INSTALL APP MODAL -->
+  <div id="install-modal" class="bottom-drawer hidden">
+    <div class="drawer-overlay" id="install-bg-overlay"></div>
+    <div class="drawer-scale-wrapper" id="install-scale-wrapper">
+      <div class="drawer-content install-card">
+        <div class="drag-handle"></div>
+        <div class="install-prompt-body">
+          <div class="logo-icon install-logo">
+            <i class="fa-solid fa-microphone-lines"></i>
+          </div>
+          <h3>Install Pronounce Helper</h3>
+          <p>Get instant access, full-screen reading, and offline capability by installing the app.</p>
+          
+          <!-- Android / Desktop Install Trigger -->
+          <button id="btn-install-app" class="primary-btn install-action-btn">
+            <i class="fa-solid fa-cloud-arrow-down"></i> Install Now
+          </button>
+          
+          <!-- iOS Safari Guided Flow -->
+          <div id="ios-install-guide" class="ios-install-guide hidden">
+            <p>1. Tap the Share button <i class="fa-solid fa-share-from-square" style="color: var(--color-primary); font-size: 1.1rem; vertical-align: middle;"></i> at the bottom.</p>
+            <p style="margin-top: 8px;">2. Scroll down and select <strong>Add to Home Screen</strong>.</p>
+          </div>
+          
+          <button id="btn-close-install" class="secondary-btn close-install-btn">Maybe Later</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Scripts -->
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
   <script src="syllables.js"></script>
