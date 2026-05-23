@@ -1,6 +1,6 @@
 {
-  "name": "Pronounce Helper",
-  "short_name": "Pronounce",
+  "name": "English Helper",
+  "short_name": "English Helper",
   "description": "Scan and learn word pronunciation and definitions instantly.",
   "start_url": "index.html",
   "display": "standalone",

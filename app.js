@@ -535,7 +535,7 @@ document.addEventListener("DOMContentLoaded", () => {
     ctx.font = "30px 'Inter', Georgia, serif";
     
     const lines = [
-      "Welcome to the Pronounce Helper application.",
+      "Welcome to the English Helper application.",
       "This tools assists English students with reading.",
       "English reading can sometimes feel like a steep",
       "hill to climb. However, breaking down complex",
