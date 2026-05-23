@@ -5,6 +5,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Pronounce Helper - Read Confidently</title>
   
+  <!-- PWA & Mobile Optimization -->
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/svg+xml" href="icon.svg">
+  <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+  <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
   <!-- SEO Meta Tags -->
   <meta name="description" content="An interactive mobile-first web app to help English learners and weak readers identify, hear, and pronounce words from book pages using OCR and TTS.">
   <meta name="theme-color" content="#4f46e5">
@@ -30,7 +39,10 @@
         <div class="logo-icon">
           <i class="fa-solid fa-microphone-lines"></i>
         </div>
-        <h1>Pronounce Helper</h1>
+        <div class="header-text-container">
+          <span class="app-sub-label">PRONOUNCE HELPER</span>
+          <h1 id="header-user-greeting">Welcome! 👋</h1>
+        </div>
       </div>
       <div class="header-actions">
         <button id="btn-theme-toggle" class="header-btn" title="Toggle Theme" aria-label="Toggle Theme">
@@ -48,8 +60,31 @@
     <!-- MAIN CONTENT -->
     <main class="app-main">
       
+      <!-- ONBOARDING SCREEN -->
+      <section id="screen-onboarding" class="app-screen">
+        <div class="onboarding-card card">
+          <div class="onboarding-icon">
+            <i class="fa-solid fa-wand-magic-sparkles"></i>
+          </div>
+          <h2>Welcome!</h2>
+          <p class="onboarding-subtitle">Let's personalize your reading assistant. What should we call you?</p>
+          
+          <form id="form-onboarding" class="onboarding-form">
+            <div class="input-group">
+              <input type="text" id="input-username" placeholder="Your Name" required autocomplete="off" maxlength="15">
+              <span class="input-focus-line"></span>
+            </div>
+            
+            <button type="submit" class="onboarding-btn primary-btn">
+              <span>Let's Go!</span>
+              <i class="fa-solid fa-arrow-right"></i>
+            </button>
+          </form>
+        </div>
+      </section>
+      
       <!-- WELCOME / UPLOAD SCREEN -->
-      <section id="screen-welcome" class="app-screen active">
+      <section id="screen-welcome" class="app-screen">
         <div class="welcome-card card">
           <div class="welcome-hero-image">
             <i class="fa-solid fa-book-open-reader"></i>

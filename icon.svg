@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bg-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#4f46e5" />
+      <stop offset="100%" stop-color="#d97706" />
+    </linearGradient>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="6" stdDeviation="10" flood-color="#000000" flood-opacity="0.25"/>
+    </filter>
+  </defs>
+  
+  <!-- Background with premium iOS-like squircle rounding -->
+  <rect width="512" height="512" rx="112" fill="url(#bg-grad)" />
+  
+  <!-- Icon Group -->
+  <g filter="url(#glow)">
+    <!-- Microphone Capsule -->
+    <rect x="224" y="130" width="64" height="130" rx="32" fill="#ffffff" />
+    
+    <!-- Microphone Stand/U-Shape -->
+    <path d="M184 210 v10 c0 39.7 32.3 72 72 72 s72-32.3 72-72 v-10" fill="none" stroke="#ffffff" stroke-width="18" stroke-linecap="round" />
+    
+    <!-- Microphone Stem -->
+    <line x1="256" y1="292" x2="256" y2="355" stroke="#ffffff" stroke-width="18" stroke-linecap="round" />
+    
+    <!-- Microphone Base -->
+    <line x1="200" y1="355" x2="312" y2="355" stroke="#ffffff" stroke-width="18" stroke-linecap="round" />
+    
+    <!-- Sound Waves (Left) -->
+    <path d="M140 180 a 70 70 0 0 0 0 100" fill="none" stroke="#ffffff" stroke-width="10" stroke-linecap="round" opacity="0.5" />
+    <path d="M100 150 a 110 110 0 0 0 0 160" fill="none" stroke="#ffffff" stroke-width="10" stroke-linecap="round" opacity="0.8" />
+    
+    <!-- Sound Waves (Right) -->
+    <path d="M372 180 a 70 70 0 0 1 0 100" fill="none" stroke="#ffffff" stroke-width="10" stroke-linecap="round" opacity="0.5" />
+    <path d="M412 150 a 110 110 0 0 1 0 160" fill="none" stroke="#ffffff" stroke-width="10" stroke-linecap="round" opacity="0.8" />
+  </g>
+</svg>

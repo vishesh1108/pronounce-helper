@@ -3,9 +3,19 @@
  * Integrates Tesseract.js OCR, Web Speech API TTS, and lookup APIs (dictionary & translation)
  */
 
+// Register Service Worker for PWA support
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js')
+      .then((reg) => console.log('[Service Worker] Registered successfully:', reg.scope))
+      .catch((err) => console.error('[Service Worker] Registration failed:', err));
+  });
+}
+
 document.addEventListener("DOMContentLoaded", () => {
   // --- STATE ---
   const state = {
+    username: localStorage.getItem("ph_username") || "",
     originalImage: null,        // Original Image element (pre-processed)
     ocrSourceImage: null,       // Scaled down image for OCR (max 1200px)
     previewSourceImage: null,   // Scaled down image for quick live preview (max 600px)
@@ -47,6 +57,10 @@ document.addEventListener("DOMContentLoaded", () => {
     // Screens
     screenWelcome: document.getElementById("screen-welcome"),
     screenScan: document.getElementById("screen-scan"),
+    screenOnboarding: document.getElementById("screen-onboarding"),
+    formOnboarding: document.getElementById("form-onboarding"),
+    inputUsername: document.getElementById("input-username"),
+    headerUserGreeting: document.getElementById("header-user-greeting"),
     
     // File inputs & buttons
     fileInput: document.getElementById("file-input"),
@@ -107,6 +121,7 @@ document.addEventListener("DOMContentLoaded", () => {
   initTheme();
   setupEventListeners();
   initWorker(); // Pre-warm OCR worker in the background
+  initOnboarding(); // Handle personalized onboarding
 
   // Load custom fonts and ensure they are active
   document.fonts.ready.then(() => {
@@ -153,6 +168,11 @@ document.addEventListener("DOMContentLoaded", () => {
   function setupEventListeners() {
     // Theme toggle
     el.btnThemeToggle.addEventListener("click", toggleTheme);
+    
+    // Onboarding Form Submit
+    if (el.formOnboarding) {
+      el.formOnboarding.addEventListener("submit", handleOnboardingSubmit);
+    }
     
     // Welcome / Inputs
     el.fileInput.addEventListener("change", handleImageUpload);
@@ -973,12 +993,125 @@ document.addEventListener("DOMContentLoaded", () => {
   function switchScreen(screenId) {
     el.screenWelcome.classList.remove("active");
     el.screenScan.classList.remove("active");
+    if (el.screenOnboarding) el.screenOnboarding.classList.remove("active");
     
     if (screenId === "welcome") {
       el.screenWelcome.classList.add("active");
-    } else {
+    } else if (screenId === "scan") {
       el.screenScan.classList.add("active");
+    } else if (screenId === "onboarding") {
+      if (el.screenOnboarding) el.screenOnboarding.classList.add("active");
     }
+  }
+
+  // --- PERSONALIZATION & ONBOARDING ---
+  function initOnboarding() {
+    state.username = localStorage.getItem("ph_username") || "";
+    if (!state.username) {
+      el.headerUserGreeting.innerText = "Welcome! 👋";
+      switchScreen("onboarding");
+    } else {
+      updateGreetingHeader();
+      switchScreen("welcome");
+    }
+  }
+
+  function updateGreetingHeader() {
+    if (state.username) {
+      el.headerUserGreeting.innerText = `Hello, ${state.username}! 👋`;
+    } else {
+      el.headerUserGreeting.innerText = "Welcome! 👋";
+    }
+  }
+
+  function handleOnboardingSubmit(e) {
+    e.preventDefault();
+    const enteredName = el.inputUsername.value.trim();
+    if (!enteredName) return;
+
+    state.username = enteredName;
+    localStorage.setItem("ph_username", enteredName);
+    
+    updateGreetingHeader();
+    triggerCelebration();
+
+    // Fade out / exit animation
+    const onboardingCard = el.screenOnboarding.querySelector(".onboarding-card");
+    onboardingCard.classList.add("screen-exit");
+
+    setTimeout(() => {
+      switchScreen("welcome");
+      onboardingCard.classList.remove("screen-exit");
+      showToast(`Welcome, ${state.username}!`);
+    }, 600);
+  }
+
+  function triggerCelebration() {
+    const canvas = document.createElement("canvas");
+    canvas.id = "confetti-canvas";
+    const parent = document.querySelector(".app-container") || document.body;
+    parent.appendChild(canvas);
+
+    const ctx = canvas.getContext("2d");
+    
+    function resizeCanvas() {
+      canvas.width = parent.clientWidth;
+      canvas.height = parent.clientHeight;
+    }
+    resizeCanvas();
+
+    const colors = ["#4f46e5", "#d97706", "#34d399", "#ef4444", "#f472b6", "#38bdf8"];
+    const particles = [];
+    const particleCount = 120;
+
+    for (let i = 0; i < particleCount; i++) {
+      particles.push({
+        x: canvas.width / 2,
+        y: canvas.height * 0.55,
+        radius: Math.random() * 6 + 3,
+        color: colors[Math.floor(Math.random() * colors.length)],
+        vx: (Math.random() - 0.5) * 14,
+        vy: -Math.random() * 16 - 6,
+        gravity: 0.35,
+        drag: 0.96,
+        rotation: Math.random() * 360,
+        rotationSpeed: (Math.random() - 0.5) * 12
+      });
+    }
+
+    let animationFrameId;
+    const startTime = Date.now();
+    const duration = 2800; // 2.8 seconds
+
+    function animate() {
+      const elapsed = Date.now() - startTime;
+      if (elapsed > duration) {
+        cancelAnimationFrame(animationFrameId);
+        canvas.remove();
+        return;
+      }
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      particles.forEach((p) => {
+        p.vx *= p.drag;
+        p.vy += p.gravity;
+        p.x += p.vx;
+        p.y += p.vy;
+        p.rotation += p.rotationSpeed;
+
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        ctx.rotate((p.rotation * Math.PI) / 180);
+        ctx.fillStyle = p.color;
+        ctx.fillRect(-p.radius, -p.radius / 2, p.radius * 2, p.radius);
+        ctx.restore();
+      });
+
+      animationFrameId = requestAnimationFrame(animate);
+    }
+
+    animate();
   }
 
   function resetToWelcome() {
