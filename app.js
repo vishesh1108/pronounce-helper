@@ -352,8 +352,8 @@ document.addEventListener("DOMContentLoaded", () => {
         showOCRLoading(true);
         updateOCRProgress("Optimizing image size...", 0.05);
 
-        // Generate resized images for OCR and live previews
-        state.ocrSourceImage = await resizeImage(img, 1200);
+        // Generate resized images for OCR and live previews (upgraded to 2000px for high-accuracy text rendering)
+        state.ocrSourceImage = await resizeImage(img, 2000);
         state.previewSourceImage = await resizeImage(img, 600);
 
         runOCRProcessing(state.ocrSourceImage);
@@ -457,7 +457,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Apply hardware-accelerated canvas filter if supported (GPU-bound)
     if (typeof ctx.filter === "string") {
-      ctx.filter = `contrast(${filters.contrast}%) brightness(${filters.brightness}%) ${filters.grayscale ? 'grayscale(100%)' : 'grayscale(0%)'}`;
+      ctx.filter = `contrast(${filters.contrast}%) brightness(${filters.brightness}%) ${filters.grayscale ? 'grayscale(100%)' : 'grayscale(0%)'} url(#svg-sharpen)`;
       ctx.drawImage(imageEl, -originalWidth / 2, -originalHeight / 2);
       ctx.filter = "none";
     } else {
@@ -597,7 +597,16 @@ document.addEventListener("DOMContentLoaded", () => {
           }
         }
       });
-      console.log("OCR Engine warmed up in background.");
+      
+      // Set OCR optimization parameters to improve accuracy
+      await tesseractWorker.setParameters({
+        tessedit_enable_bigram_correction: '1',
+        language_model_penalty_non_dict_word: '0.3',
+        language_model_penalty_non_freq_dict_word: '0.2',
+        tessedit_char_blacklist: '`|~[]{}'
+      });
+      
+      console.log("OCR Engine warmed up and configured in background.");
     } catch (e) {
       console.error("Failed to initialize background OCR worker", e);
     }

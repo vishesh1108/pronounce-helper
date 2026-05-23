@@ -335,6 +335,15 @@
     </div>
   </div>
 
+  <!-- INVISIBLE SVG FILTER FOR GPU SHARPENING -->
+  <svg style="display: none; width: 0; height: 0;">
+    <defs>
+      <filter id="svg-sharpen">
+        <feConvolveMatrix order="3" kernelMatrix="0 -1 0 -1 5 -1 0 -1 0" preserveAlpha="true" />
+      </filter>
+    </defs>
+  </svg>
+
   <!-- Scripts -->
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
   <script src="syllables.js"></script>
