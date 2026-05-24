@@ -76,22 +76,26 @@ Example output format:
 
     // 1. Try Groq (Llama) if configured
     if (groqApiKey) {
-      console.log('Using Groq API...');
-      const Groq = require('groq-sdk');
-      const groq = new Groq({ apiKey: groqApiKey });
-      
-      const completion = await groq.chat.completions.create({
-        messages: [{ role: 'user', content: prompt }],
-        model: 'llama-3.1-8b-instant', // fast, cheap, high-quality open-source model
-        temperature: 0.5,
-        max_tokens: 300,
-      });
+      try {
+        console.log('Using Groq API...');
+        const Groq = require('groq-sdk');
+        const groq = new Groq({ apiKey: groqApiKey });
+        
+        const completion = await groq.chat.completions.create({
+          messages: [{ role: 'user', content: prompt }],
+          model: 'llama-3.1-8b-instant', // fast, cheap, high-quality open-source model
+          temperature: 0.5,
+          max_tokens: 300,
+        });
 
-      const responseText = completion.choices[0]?.message?.content || '';
-      sentences = parseJsonArray(responseText);
+        const responseText = completion.choices[0]?.message?.content || '';
+        sentences = parseJsonArray(responseText);
+      } catch (groqError) {
+        console.warn('Groq API call failed:', groqError.message);
+      }
     } 
-    // 2. Try Gemini if configured (and Groq was not used)
-    else if (geminiApiKey) {
+    // 2. Try Gemini if configured (and Groq was not used or failed)
+    if (!sentences && geminiApiKey) {
       console.log('Using Gemini API...');
       const { GoogleGenAI } = require('@google/genai');
       const ai = new GoogleGenAI({ apiKey: geminiApiKey });
@@ -116,8 +120,8 @@ Example output format:
       console.log('Gemini raw response:', responseText);
       sentences = parseJsonArray(responseText);
     } 
-    // 3. Neither key is configured
-    else {
+    // 3. Neither key is configured or both failed
+    else if (!sentences) {
       console.error('No API keys configured on backend.');
       return res.status(500).json({ error: 'Server API keys not configured. Please supply a GEMINI_API_KEY or GROQ_API_KEY in the app URL or server environment.' });
     }
