@@ -58,6 +58,7 @@ app.get('/api/sentences', async (req, res) => {
   const prompt = `Generate exactly 5 distinct, practical, and natural English sentences using the word "${cleanWord}".
 Each sentence must integrate the word naturally in a different scenario (casual conversation, business/work, academic/study, shopping/travel, technology).
 Ensure all other words in the sentences (except the word "${cleanWord}") are extremely simple, beginner-friendly, and very easy to spell and pronounce so the student can focus entirely on "${cleanWord}".
+Vary the position of the target word "${cleanWord}" across the 5 sentences (e.g., place it at the beginning of some sentences, in the middle of others, or at the end). Do not always place it at the end of the sentences so it does not look monotonous.
 Return ONLY a valid JSON array of strings containing the 5 sentences. Do not include markdown code blocks, do not write "here is the json", and do not include extra explanations.
 Example output format:
 ["Sentence 1 with word", "Sentence 2 with word", "Sentence 3 with word", "Sentence 4 with word", "Sentence 5 with word"]`;

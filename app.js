@@ -1348,16 +1348,16 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Smart contextual sentence templates for arbitrary words (extremely simple words)
     const templates = [
-      "I want to see the {word}.",
-      "Do you like this {word}?",
-      "She has a new {word}.",
-      "He can find the {word}.",
-      "We read about the {word}.",
-      "Look at that big {word}.",
-      "They have a good {word}.",
-      "Give me the {word} now.",
-      "This {word} is very easy.",
-      "I like to talk about {word}."
+      "The {word} is on the desk.",
+      "Can you show me the {word}?",
+      "He likes to {word} a lot.",
+      "Please try to {word} this.",
+      "We will check the {word} today.",
+      "{word} is very easy to learn.",
+      "I want to {word} right now.",
+      "She wants this {word} today.",
+      "They speak about {word} now.",
+      "Let us practice {word} together."
     ];
 
     // Shuffle and pick 5 templates
