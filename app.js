@@ -1270,7 +1270,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // --- PRACTICE MODE DYNAMIC GENERATION & SPEECH RECOGNITION ---
-  const BACKEND_URL = "https://pronounce-helper-ginfxvceg-vishesh-chokhanis-projects.vercel.app"; // Set to your live vercel backend URL
+  const BACKEND_URL = "https://pronounce-helper-vishesh-chokhanis-projects.vercel.app"; // Set to your live vercel backend URL
 
   async function getPracticeSentences(word) {
     const lowerWord = word.toLowerCase();
