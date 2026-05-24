@@ -14,6 +14,7 @@ if ('serviceWorker' in navigator) {
 
 document.addEventListener("DOMContentLoaded", () => {
   // --- STATE & CACHE INITIALIZATION ---
+  let tesseractWorker = null;
   function getSafeArray(key) {
     try {
       const item = localStorage.getItem(key);
@@ -623,7 +624,6 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // --- OCR ENGINE (TESSERACT.JS) ---
-  let tesseractWorker = null;
 
   async function initWorker() {
     if (tesseractWorker) return;

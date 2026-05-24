@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pronounce-helper-v3';
+const CACHE_NAME = 'pronounce-helper-v4';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -48,14 +48,21 @@ self.addEventListener('fetch', (event) => {
 
   const url = new URL(event.request.url);
 
-  // Caching strategy:
-  // For Tesseract CDN assets, font files, and FontAwesome webfonts, use Cache First.
-  // This is because these files are heavy and immutable.
+  // Check if this is a request to our app's own origin
+  const isLocalRequest = url.origin === self.location.origin;
+
+  // CDN assets we want to cache
   const isCDN = url.hostname.includes('cdn.jsdelivr.net') || 
                 url.hostname.includes('cdnjs.cloudflare.com') ||
                 url.hostname.includes('fonts.gstatic.com') ||
                 url.hostname.includes('fonts.googleapis.com') ||
                 url.hostname.includes('unpkg.com');
+
+  // ONLY intercept if it's a local request or a recognized CDN
+  // Do NOT intercept external APIs, Vercel backend, or custom API endpoints
+  if ((!isLocalRequest && !isCDN) || url.pathname.includes('/api/')) {
+    return; // Bypass service worker completely
+  }
 
   if (isCDN) {
     event.respondWith(
@@ -87,7 +94,13 @@ self.addEventListener('fetch', (event) => {
           }
           return networkResponse;
         }).catch((err) => {
-          console.warn('[Service Worker] Network fetch failed, offline fallback.');
+          console.warn('[Service Worker] Network fetch failed, offline fallback.', err);
+          // Return a fallback response so we don't throw TypeError: Failed to convert value to 'Response'
+          return cachedResponse || new Response('Offline fallback unavailable', {
+            status: 503,
+            statusText: 'Service Unavailable',
+            headers: new Headers({ 'Content-Type': 'text/plain' })
+          });
         });
         
         return cachedResponse || fetchPromise;
