@@ -1689,6 +1689,8 @@ document.addEventListener("DOMContentLoaded", () => {
     let utterance = null;
     let isSpeaking = false;
     let currentSpeed = 0.8;
+    let checkBoundaryTimeout = null;
+    let fallbackInterval = null;
 
     speedChips.forEach(chip => {
       chip.addEventListener("click", () => {
@@ -1717,8 +1719,14 @@ document.addEventListener("DOMContentLoaded", () => {
                        voices.find(v => v.lang.startsWith("en"));
       if (engVoice) utterance.voice = engVoice;
 
+      // Save a global reference to prevent aggressive garbage collection on Chrome
+      window.activeUtterance = utterance;
+
+      let hasFiredBoundary = false;
+
       utterance.onboundary = (event) => {
         if (event.name === "word") {
+          hasFiredBoundary = true;
           const charIndex = event.charIndex;
           const activeIdx = words.findIndex(w => charIndex >= w.start && charIndex < w.end);
           
@@ -1727,6 +1735,16 @@ document.addEventListener("DOMContentLoaded", () => {
             wordSpans[activeIdx].classList.add("highlight-active");
           }
         }
+      };
+
+      utterance.onstart = () => {
+        // Safe check: if native boundary events don't fire within 800ms, run fallback timer
+        checkBoundaryTimeout = setTimeout(() => {
+          if (!hasFiredBoundary && isSpeaking) {
+            console.log("SpeechSynthesis onboundary did not fire. Running fallback word-highlight timer.");
+            startFallbackHighlighting();
+          }
+        }, 800);
       };
 
       utterance.onend = () => {
@@ -1742,12 +1760,48 @@ document.addEventListener("DOMContentLoaded", () => {
       window.speechSynthesis.speak(utterance);
     }
 
+    function startFallbackHighlighting() {
+      if (fallbackInterval) clearTimeout(fallbackInterval);
+      
+      let wordIdx = 0;
+      
+      function highlightNext() {
+        if (wordIdx >= words.length || !isSpeaking) {
+          if (fallbackInterval) clearTimeout(fallbackInterval);
+          fallbackInterval = null;
+          return;
+        }
+        
+        wordSpans.forEach(s => s.classList.remove("highlight-active"));
+        if (wordSpans[wordIdx]) {
+          wordSpans[wordIdx].classList.add("highlight-active");
+        }
+        
+        // Estimate word duration based on character length (90ms per character at 1.0x speed)
+        const wordText = words[wordIdx].text;
+        const wordCharCount = wordText.replace(/[^\w]/g, "").length || 1;
+        const wordDuration = (wordCharCount * 90) / currentSpeed;
+        
+        wordIdx++;
+        fallbackInterval = setTimeout(highlightNext, wordDuration);
+      }
+      
+      highlightNext();
+    }
+
     function stopSpeech() {
       if (window.speechSynthesis) {
         window.speechSynthesis.cancel();
       }
       isSpeaking = false;
       playBtn.innerHTML = '<i class="fa-solid fa-play"></i>';
+      
+      // Clear all timers
+      if (checkBoundaryTimeout) clearTimeout(checkBoundaryTimeout);
+      if (fallbackInterval) clearTimeout(fallbackInterval);
+      checkBoundaryTimeout = null;
+      fallbackInterval = null;
+
       wordSpans.forEach(s => s.classList.remove("highlight-active"));
     }
 
