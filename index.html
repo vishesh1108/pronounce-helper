@@ -54,6 +54,9 @@
         <button id="btn-bookmarks" class="header-btn" title="Saved Words" aria-label="View saved words">
           <i class="fa-solid fa-bookmark"></i>
         </button>
+        <button id="btn-practice" class="header-btn" title="Practice Mode" aria-label="Practice Mode">
+          <i class="fa-solid fa-graduation-cap"></i>
+        </button>
       </div>
     </header>
 
@@ -208,6 +211,32 @@
             </div>
           </div>
 
+        </div>
+      </section>
+
+      <!-- PRACTICE SCREEN -->
+      <section id="screen-practice" class="app-screen">
+        <div class="practice-container card">
+          <div class="practice-header">
+            <button id="btn-practice-back" class="back-btn" title="Back to Scan">
+              <i class="fa-solid fa-arrow-left"></i>
+            </button>
+            <h2>Practice Pronunciation</h2>
+          </div>
+          
+          <div class="practice-body">
+            <!-- Empty state when no practice words -->
+            <div id="practice-empty-state" class="practice-empty-state">
+              <i class="fa-solid fa-microphone-lines"></i>
+              <h3>No words to practice yet</h3>
+              <p>Scan a book page and tap any word <strong>more than once</strong> to add it to your practice list!</p>
+            </div>
+            
+            <!-- Dynamic practice words list -->
+            <div id="practice-words-list" class="practice-words-list">
+              <!-- Cards will be dynamically inserted here -->
+            </div>
+          </div>
         </div>
       </section>
 

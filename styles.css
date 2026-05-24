@@ -1591,3 +1591,307 @@ button, input, select {
   font-weight: 600;
   line-height: 1.4;
 }
+
+/* --- PRACTICE SCREEN STYLES --- */
+.practice-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  max-height: 85vh;
+  gap: 16px;
+  overflow: hidden;
+}
+
+.practice-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  border-bottom: var(--border-width) solid var(--border-color);
+  padding-bottom: 14px;
+}
+
+.practice-header .back-btn {
+  background: none;
+  border: none;
+  font-size: 1.2rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  transition: all var(--transition-fast);
+}
+
+.practice-header .back-btn:hover {
+  background-color: var(--color-primary-light);
+  color: var(--color-primary);
+}
+
+.practice-header h2 {
+  font-family: var(--font-heading);
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.practice-body {
+  flex-grow: 1;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.practice-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--text-secondary);
+  gap: 12px;
+}
+
+.practice-empty-state i {
+  font-size: 3rem;
+  color: var(--color-primary-light);
+  margin-bottom: 8px;
+}
+
+.practice-empty-state h3 {
+  font-family: var(--font-heading);
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.practice-empty-state p {
+  font-size: 0.88rem;
+  line-height: 1.5;
+  max-width: 280px;
+  margin: 0;
+}
+
+.practice-words-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.practice-card {
+  background-color: var(--bg-drawer);
+  border: var(--border-width) solid var(--border-color);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+  transition: all var(--transition-fast);
+}
+
+.practice-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 16px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.practice-card-header:hover {
+  background-color: var(--bg-app);
+}
+
+.practice-card-header .word-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.practice-card-header h3 {
+  font-family: var(--font-heading);
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.tap-badge {
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 12px;
+  background-color: var(--color-primary-light);
+  color: var(--color-primary);
+  text-transform: uppercase;
+}
+
+.practice-card-header .action-buttons {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.speak-word-btn, .toggle-sentences-btn {
+  background: none;
+  border: none;
+  font-size: 0.95rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--transition-fast);
+}
+
+.speak-word-btn:hover {
+  background-color: var(--color-primary-light);
+  color: var(--color-primary);
+}
+
+.toggle-sentences-btn:hover {
+  background-color: var(--border-color);
+  color: var(--text-primary);
+}
+
+.toggle-sentences-btn.expanded i {
+  transform: rotate(180deg);
+}
+
+.practice-sentences-panel {
+  border-top: var(--border-width) solid var(--border-color);
+  background-color: var(--bg-app);
+  padding: 8px 16px 16px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.practice-sentences-panel.hidden {
+  display: none !important;
+}
+
+.sentence-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border-bottom: 1px dashed var(--border-color);
+  padding: 10px 0;
+}
+
+.sentence-item:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.sentence-text {
+  font-size: 0.88rem;
+  color: var(--text-primary);
+  line-height: 1.4;
+  margin: 0;
+}
+
+.sentence-text strong {
+  color: var(--color-primary);
+  font-weight: 700;
+  background-color: var(--color-primary-light);
+  padding: 1px 4px;
+  border-radius: 3px;
+}
+
+.sentence-row-layout {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.sentence-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.record-speech-btn, .vocal-guide-btn {
+  border: var(--border-width) solid var(--border-color);
+  background-color: var(--bg-drawer);
+  color: var(--text-secondary);
+  cursor: pointer;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--transition-fast);
+  font-size: 0.88rem;
+}
+
+.record-speech-btn:hover {
+  background-color: var(--color-primary-light);
+  color: var(--color-primary);
+  border-color: var(--color-primary-light);
+}
+
+.record-speech-btn.recording {
+  background-color: var(--color-danger);
+  color: white;
+  border-color: transparent;
+  animation: pulseMic 1.2s infinite;
+}
+
+.record-speech-btn.success {
+  background-color: #22c55e;
+  color: white;
+  border-color: transparent;
+}
+
+.record-speech-btn.failed {
+  background-color: var(--color-danger);
+  color: white;
+  border-color: transparent;
+}
+
+.vocal-guide-btn {
+  color: var(--color-accent);
+}
+
+.vocal-guide-btn:hover {
+  background-color: var(--color-accent-light);
+  border-color: var(--color-accent-light);
+}
+
+.vocal-guide-btn.hidden {
+  display: none !important;
+}
+
+.sentence-feedback {
+  font-size: 0.78rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.sentence-feedback.success {
+  color: #16a34a;
+}
+
+.sentence-feedback.failed {
+  color: #dc2626;
+}
+
+.sentence-feedback.hidden {
+  display: none !important;
+}
+
+/* Pulsing red mic animation */
+@keyframes pulseMic {
+  0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.5); }
+  70% { transform: scale(1.1); box-shadow: 0 0 0 8px rgba(239, 68, 68, 0); }
+  100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+}
+

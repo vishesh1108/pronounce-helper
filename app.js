@@ -13,10 +13,32 @@ if ('serviceWorker' in navigator) {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
-  // --- STATE ---
+  // --- STATE & CACHE INITIALIZATION ---
+  function getSafeArray(key) {
+    try {
+      const item = localStorage.getItem(key);
+      if (!item) return [];
+      const parsed = JSON.parse(item);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (e) {
+      console.warn(`Failed to parse localStorage key "${key}"`, e);
+      return [];
+    }
+  }
+
+  function getSafeObject(key) {
+    try {
+      const item = localStorage.getItem(key);
+      if (!item) return {};
+      const parsed = JSON.parse(item);
+      return (parsed && typeof parsed === "object" && !Array.isArray(parsed)) ? parsed : {};
+    } catch (e) {
+      console.warn(`Failed to parse localStorage key "${key}"`, e);
+      return {};
+    }
+  }
+
   const state = {
-    username: localStorage.getItem("ph_username") || "",
-    deferredPrompt: null,       // Stashed PWA install prompt event
     originalImage: null,        // Original Image element (pre-processed)
     ocrSourceImage: null,       // Scaled down image for OCR (max 1200px)
     previewSourceImage: null,   // Scaled down image for quick live preview (max 600px)
@@ -30,15 +52,17 @@ document.addEventListener("DOMContentLoaded", () => {
     ocrWords: [],               // Words extracted from OCR
     selectedWord: null,         // Currently selected word string
     speechSpeed: 0.8,           // Speed of TTS (0.6, 0.8, 1.0)
-    history: JSON.parse(localStorage.getItem("ph_history")) || [],
-    bookmarks: JSON.parse(localStorage.getItem("ph_bookmarks")) || [],
+    history: getSafeArray("ph_history"),
+    bookmarks: getSafeArray("ph_bookmarks"),
+    wordTaps: getSafeObject("ph_word_taps"),
+    practiceSentences: getSafeObject("ph_word_sentences"),
     theme: localStorage.getItem("ph_theme") || "light",
     activeSidebarType: null,    // 'history' or 'bookmarks'
     isScanning: false
   };
 
   // API Caching: Local cache synced with localStorage
-  const apiCache = JSON.parse(localStorage.getItem("ph_api_cache")) || {};
+  const apiCache = getSafeObject("ph_api_cache");
 
   function saveCache() {
     try {
@@ -54,11 +78,14 @@ document.addEventListener("DOMContentLoaded", () => {
     btnThemeToggle: document.getElementById("btn-theme-toggle"),
     btnHistory: document.getElementById("btn-history"),
     btnBookmarks: document.getElementById("btn-bookmarks"),
+    btnPractice: document.getElementById("btn-practice"),
+    btnPracticeBack: document.getElementById("btn-practice-back"),
     
     // Screens
     screenWelcome: document.getElementById("screen-welcome"),
     screenScan: document.getElementById("screen-scan"),
     screenOnboarding: document.getElementById("screen-onboarding"),
+    screenPractice: document.getElementById("screen-practice"),
     formOnboarding: document.getElementById("form-onboarding"),
     inputUsername: document.getElementById("input-username"),
     headerUserGreeting: document.getElementById("header-user-greeting"),
@@ -71,6 +98,7 @@ document.addEventListener("DOMContentLoaded", () => {
     btnCloseInstall: document.getElementById("btn-close-install"),
     
     // File inputs & buttons
+    cameraInput: document.getElementById("camera-input"),
     fileInput: document.getElementById("file-input"),
     btnDemo: document.getElementById("btn-demo"),
     btnUploadNew: document.getElementById("btn-upload-new"),
@@ -121,12 +149,17 @@ document.addEventListener("DOMContentLoaded", () => {
     sidebarList: document.getElementById("sidebar-list"),
     btnClearList: document.getElementById("btn-clear-list"),
     
+    // Practice Screen Dynamic bindings
+    practiceEmptyState: document.getElementById("practice-empty-state"),
+    practiceWordsList: document.getElementById("practice-words-list"),
+    
     // Toast
     toastContainer: document.getElementById("toast-container")
   };
 
   // --- INITIALIZATION ---
   initTheme();
+  importApiKeyFromUrl();
   setupEventListeners();
   initWorker(); // Pre-warm OCR worker in the background
   initOnboarding(); // Handle personalized onboarding
@@ -284,6 +317,14 @@ document.addEventListener("DOMContentLoaded", () => {
     // History and Bookmark sidebar controls
     el.btnHistory.addEventListener("click", () => openSidebar("history"));
     el.btnBookmarks.addEventListener("click", () => openSidebar("bookmarks"));
+    el.btnPractice.addEventListener("click", () => switchScreen("practice"));
+    el.btnPracticeBack.addEventListener("click", () => {
+      if (state.originalImage) {
+        switchScreen("scan");
+      } else {
+        switchScreen("welcome");
+      }
+    });
     el.btnCloseSidebar.addEventListener("click", closeSidebar);
     el.sidebarBgOverlay.addEventListener("click", closeSidebar);
     el.btnClearList.addEventListener("click", clearSidebarList);
@@ -768,6 +809,15 @@ document.addEventListener("DOMContentLoaded", () => {
     const cleanWord = rawWord.trim().replace(/^[^a-zA-Z]+|[^a-zA-Z]+$/g, "");
     if (!cleanWord) return;
 
+    // Track word taps for practice tab
+    const lowerWord = cleanWord.toLowerCase();
+    state.wordTaps[lowerWord] = (state.wordTaps[lowerWord] || 0) + 1;
+    localStorage.setItem("ph_word_taps", JSON.stringify(state.wordTaps));
+
+    if (state.wordTaps[lowerWord] === 2) {
+      showToast(`"${cleanWord}" added to Practice!`);
+    }
+
     speakWord(cleanWord);
     addToHistory(cleanWord);
     loadWordData(cleanWord);
@@ -1031,6 +1081,7 @@ document.addEventListener("DOMContentLoaded", () => {
   function switchScreen(screenId) {
     el.screenWelcome.classList.remove("active");
     el.screenScan.classList.remove("active");
+    el.screenPractice.classList.remove("active");
     if (el.screenOnboarding) el.screenOnboarding.classList.remove("active");
     
     if (screenId === "welcome") {
@@ -1039,6 +1090,9 @@ document.addEventListener("DOMContentLoaded", () => {
       el.screenScan.classList.add("active");
     } else if (screenId === "onboarding") {
       if (el.screenOnboarding) el.screenOnboarding.classList.add("active");
+    } else if (screenId === "practice") {
+      el.screenPractice.classList.add("active");
+      renderPracticeScreen();
     }
   }
 
@@ -1199,6 +1253,366 @@ document.addEventListener("DOMContentLoaded", () => {
     el.sourceImage.src = "";
     el.wordOverlayContainer.innerHTML = "";
     switchScreen("welcome");
+  }
+
+  function importApiKeyFromUrl() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const queryKey = urlParams.get('key');
+    if (queryKey) {
+      localStorage.setItem('ph_gemini_api_key', queryKey);
+      const cleanUrl = window.location.protocol + "//" + window.location.host + window.location.pathname;
+      window.history.replaceState({ path: cleanUrl }, '', cleanUrl);
+      setTimeout(() => showToast('AI API Key configured successfully!'), 800);
+    }
+  }
+
+  // --- PRACTICE MODE DYNAMIC GENERATION & SPEECH RECOGNITION ---
+  const BACKEND_URL = "https://pronounce-helper-ginfxvceg-vishesh-chokhanis-projects.vercel.app"; // Set to your live vercel backend URL
+
+  async function getPracticeSentences(word) {
+    const lowerWord = word.toLowerCase();
+    // Return from cache if we already generated sentences for this word
+    if (state.practiceSentences[lowerWord] && state.practiceSentences[lowerWord].length === 5) {
+      return state.practiceSentences[lowerWord];
+    }
+
+    // Try fetching from the cloud backend
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 3000); // 3-second timeout
+
+      const response = await fetch(`${BACKEND_URL}/api/sentences?word=${encodeURIComponent(word)}`, {
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.sentences && data.sentences.length === 5) {
+          state.practiceSentences[lowerWord] = data.sentences;
+          localStorage.setItem("ph_word_sentences", JSON.stringify(state.practiceSentences));
+          return data.sentences;
+        }
+      }
+    } catch (err) {
+      console.warn(`Backend generation failed or timed out for "${word}". Using local template engine fallback.`, err.message);
+    }
+
+    // Fallback: Use local offline sentence generator
+    const fallbackSentences = generateLocalSentences(word);
+    state.practiceSentences[lowerWord] = fallbackSentences;
+    localStorage.setItem("ph_word_sentences", JSON.stringify(state.practiceSentences));
+    return fallbackSentences;
+  }
+
+  function generateLocalSentences(word) {
+    const lower = word.toLowerCase();
+    
+    // High-quality pre-baked overrides for common demo words
+    const overrides = {
+      technology: [
+        "Modern technology changes the way we live and work.",
+        "The classroom integrates advanced technology to help students learn.",
+        "Many people rely on mobile technology for their daily tasks.",
+        "Our company is investing in new software technology.",
+        "It is fascinating to see how rapidly technology evolves."
+      ],
+      student: [
+        "The college student is studying hard for the final exams.",
+        "Every student has a unique way of learning new words.",
+        "She was a bright student who always asked interesting questions.",
+        "The teacher gave the student some helpful pronunciation guides.",
+        "He is a student of English literature at the university."
+      ],
+      unbelievable: [
+        "His progress in English pronunciation is absolutely unbelievable.",
+        "The scenic view from the top of the mountain was unbelievable.",
+        "It is unbelievable that they completed the project in one day.",
+        "She told an unbelievable story about her travels.",
+        "Winning the spelling competition was an unbelievable experience."
+      ],
+      pronunciation: [
+        "Working on your pronunciation helps you speak English clearly.",
+        "The correct pronunciation of this word is tricky for beginners.",
+        "Practice makes your pronunciation sound more natural over time.",
+        "He used a dictionary to look up the phonetic guide and pronunciation.",
+        "Listen to native speakers to improve your English pronunciation."
+      ]
+    };
+
+    if (overrides[lower]) return overrides[lower];
+
+    // Smart contextual sentence templates for arbitrary words
+    const templates = [
+      "I would love to learn more about {word} when I have time.",
+      "Can you explain the exact meaning of {word}?",
+      "We need to focus on {word} to improve our final results.",
+      "She spoke about {word} during her presentation yesterday.",
+      "Understanding the concept of {word} can be quite challenging.",
+      "It is important to integrate {word} into our daily routine.",
+      "He did not know how to spell {word} correctly on the test.",
+      "The book provides a detailed explanation of {word}.",
+      "They had a long discussion about {word} last night.",
+      "Could you give me an example of {word} in a sentence?"
+    ];
+
+    // Shuffle and pick 5 templates
+    const shuffled = [...templates].sort(() => 0.5 - Math.random());
+    return shuffled.slice(0, 5).map(t => t.replace(/{word}/g, word));
+  }
+
+  function renderPracticeScreen() {
+    const listContainer = el.practiceWordsList;
+    listContainer.innerHTML = "";
+
+    // Load words tapped > 1 time, sorted by increasing difficulty (tap count)
+    const practiceWords = Object.keys(state.wordTaps)
+      .filter(w => state.wordTaps[w] > 1)
+      .sort((a, b) => state.wordTaps[a] - state.wordTaps[b]);
+
+    if (practiceWords.length === 0) {
+      el.practiceEmptyState.classList.remove("hidden");
+      return;
+    }
+
+    el.practiceEmptyState.classList.add("hidden");
+
+    practiceWords.forEach(word => {
+      const card = document.createElement("div");
+      card.className = "practice-card";
+      card.dataset.word = word;
+
+      const taps = state.wordTaps[word];
+
+      card.innerHTML = `
+        <div class="practice-card-header">
+          <div class="word-info">
+            <h3>${word}</h3>
+            <span class="tap-badge">Tapped ${taps} times</span>
+          </div>
+          <div class="action-buttons">
+            <button class="speak-word-btn" title="Pronounce Word">
+              <i class="fa-solid fa-volume-high"></i>
+            </button>
+            <button class="toggle-sentences-btn" title="Show Sentences">
+              <i class="fa-solid fa-chevron-down"></i>
+            </button>
+          </div>
+        </div>
+        <div class="practice-sentences-panel hidden">
+          <div class="sentences-loading" style="padding: 12px; font-size: 0.85rem; color: var(--text-secondary);">
+            <i class="fa-solid fa-circle-notch fa-spin"></i> Loading practice sentences...
+          </div>
+        </div>
+      `;
+
+      const header = card.querySelector(".practice-card-header");
+      const toggleBtn = card.querySelector(".toggle-sentences-btn");
+      const panel = card.querySelector(".practice-sentences-panel");
+      const speakBtn = card.querySelector(".speak-word-btn");
+
+      // Header click expands panels
+      header.addEventListener("click", async (e) => {
+        if (e.target.closest("button")) return; // skip if clicking buttons
+        
+        const isHidden = panel.classList.contains("hidden");
+        if (isHidden) {
+          panel.classList.remove("hidden");
+          toggleBtn.classList.add("expanded");
+          await populateSentences(word, panel);
+        } else {
+          panel.classList.add("hidden");
+          toggleBtn.classList.remove("expanded");
+        }
+      });
+
+      toggleBtn.addEventListener("click", async () => {
+        const isHidden = panel.classList.contains("hidden");
+        if (isHidden) {
+          panel.classList.remove("hidden");
+          toggleBtn.classList.add("expanded");
+          await populateSentences(word, panel);
+        } else {
+          panel.classList.add("hidden");
+          toggleBtn.classList.remove("expanded");
+        }
+      });
+
+      speakBtn.addEventListener("click", () => speakWord(word));
+      listContainer.appendChild(card);
+    });
+  }
+
+  async function populateSentences(word, panelEl) {
+    if (panelEl.querySelector(".sentence-item")) return; // already loaded
+
+    const sentences = await getPracticeSentences(word);
+    panelEl.innerHTML = "";
+
+    sentences.forEach((sentence, idx) => {
+      const item = document.createElement("div");
+      item.className = "sentence-item";
+      item.dataset.index = idx;
+
+      // Highlight target word in sentence
+      const regex = new RegExp(`\\b(${word})\\b`, "gi");
+      const highlighted = sentence.replace(regex, "<strong>$1</strong>");
+
+      item.innerHTML = `
+        <p class="sentence-text">${highlighted}</p>
+        <div class="sentence-row-layout">
+          <div class="sentence-feedback hidden"></div>
+          <div class="sentence-actions">
+            <button class="record-speech-btn" title="Practice Speaking">
+              <i class="fa-solid fa-microphone"></i>
+            </button>
+            <button class="vocal-guide-btn hidden" title="Listen to Sentence">
+              <i class="fa-solid fa-volume-high"></i>
+            </button>
+          </div>
+        </div>
+      `;
+
+      const recordBtn = item.querySelector(".record-speech-btn");
+      const vocalBtn = item.querySelector(".vocal-guide-btn");
+      const feedbackEl = item.querySelector(".sentence-feedback");
+
+      recordBtn.addEventListener("click", () => {
+        startSpeechRecognition(sentence, recordBtn, feedbackEl, vocalBtn);
+      });
+
+      vocalBtn.addEventListener("click", () => {
+        speakSentence(sentence);
+      });
+
+      panelEl.appendChild(item);
+    });
+  }
+
+  let speechRecognition = null;
+  let activeRecognitionBtn = null;
+
+  function startSpeechRecognition(targetSentence, buttonEl, feedbackEl, guideBtnEl) {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      showToast("Speech recognition is not supported in this browser. Please use Chrome, Edge, or Safari.");
+      return;
+    }
+
+    if (speechRecognition) {
+      speechRecognition.stop();
+      if (activeRecognitionBtn === buttonEl) {
+        return; // toggle off
+      }
+    }
+
+    activeRecognitionBtn = buttonEl;
+    buttonEl.className = "record-speech-btn recording";
+    buttonEl.innerHTML = '<i class="fa-solid fa-microphone-lines"></i>';
+
+    feedbackEl.classList.add("hidden");
+    feedbackEl.innerHTML = "";
+
+    speechRecognition = new SpeechRecognition();
+    speechRecognition.lang = 'en-US';
+    speechRecognition.continuous = false;
+    speechRecognition.interimResults = false;
+
+    speechRecognition.onresult = (event) => {
+      const spokenText = event.results[0][0].transcript;
+      console.log("Spoken sentence:", spokenText);
+
+      const isCorrect = verifySpeech(targetSentence, spokenText);
+
+      if (isCorrect) {
+        buttonEl.className = "record-speech-btn success";
+        buttonEl.innerHTML = '<i class="fa-solid fa-check"></i>';
+
+        const successMsgs = [
+          "Muah! You nailed it! 💋",
+          "Perfect pronunciation! 😘",
+          "Awesome! Mwah! 💋",
+          "Spot on! Beautiful! 💋"
+        ];
+        const msg = successMsgs[Math.floor(Math.random() * successMsgs.length)];
+        feedbackEl.className = "sentence-feedback success";
+        feedbackEl.innerHTML = `<i class="fa-solid fa-circle-check"></i> <span>${msg}</span>`;
+        feedbackEl.classList.remove("hidden");
+        guideBtnEl.classList.add("hidden");
+      } else {
+        buttonEl.className = "record-speech-btn failed";
+        buttonEl.innerHTML = '<i class="fa-solid fa-xmark"></i>';
+
+        const retryMsgs = [
+          "Retry! You got this! 💪",
+          "Almost! Keep trying! 📣",
+          "Don't give up! Try again! 🚀",
+          "So close! Give it another go! 🌟"
+        ];
+        const msg = retryMsgs[Math.floor(Math.random() * retryMsgs.length)];
+        feedbackEl.className = "sentence-feedback failed";
+        feedbackEl.innerHTML = `<i class="fa-solid fa-triangle-exclamation"></i> <span>${msg}</span>`;
+        feedbackEl.classList.remove("hidden");
+        guideBtnEl.classList.remove("hidden"); // reveal pronunciation helper speaker
+      }
+    };
+
+    speechRecognition.onerror = (e) => {
+      console.error("Speech recognition error:", e);
+      buttonEl.className = "record-speech-btn";
+      buttonEl.innerHTML = '<i class="fa-solid fa-microphone"></i>';
+      if (e.error !== 'aborted') {
+        showToast(`Speech recognition error: ${e.error}`);
+      }
+    };
+
+    speechRecognition.onend = () => {
+      speechRecognition = null;
+      activeRecognitionBtn = null;
+      if (buttonEl.className === "record-speech-btn recording") {
+        buttonEl.className = "record-speech-btn";
+        buttonEl.innerHTML = '<i class="fa-solid fa-microphone"></i>';
+      }
+    };
+
+    speechRecognition.start();
+  }
+
+  function verifySpeech(target, spoken) {
+    const tWords = target.toLowerCase().replace(/[^\w\s]/g, "").split(/\s+/).filter(Boolean);
+    const sWords = spoken.toLowerCase().replace(/[^\w\s]/g, "").split(/\s+/).filter(Boolean);
+
+    if (tWords.length === 0) return false;
+
+    let matchCount = 0;
+    let sIdx = 0;
+
+    for (let i = 0; i < tWords.length; i++) {
+      const foundIdx = sWords.indexOf(tWords[i], sIdx);
+      if (foundIdx !== -1) {
+        matchCount++;
+        sIdx = foundIdx + 1; // enforce chronological word order
+      }
+    }
+
+    const ratio = matchCount / tWords.length;
+    return ratio >= 0.8; // 80% threshold
+  }
+
+  function speakSentence(text) {
+    if (!window.speechSynthesis) return;
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = "en-US";
+    utterance.rate = state.speechSpeed;
+
+    const voices = window.speechSynthesis.getVoices();
+    const engVoice = voices.find(v => v.lang.startsWith("en-IN")) ||
+                     voices.find(v => v.lang.startsWith("en-US")) ||
+                     voices.find(v => v.lang.startsWith("en"));
+    if (engVoice) utterance.voice = engVoice;
+
+    window.speechSynthesis.speak(utterance);
   }
 
   // --- UTILS ---
