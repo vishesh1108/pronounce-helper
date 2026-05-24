@@ -69,7 +69,7 @@ Example output format:
     // 1. Try Groq (Llama) if GROQ_API_KEY is configured
     if (process.env.GROQ_API_KEY) {
       console.log('Using Groq API...');
-      const Groq = require('@groq/sdk');
+      const Groq = require('groq-sdk');
       const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
       
       const completion = await groq.chat.completions.create({
