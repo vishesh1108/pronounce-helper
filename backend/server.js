@@ -1,13 +1,44 @@
 const express = require('express');
 const cors = require('cors');
+const rateLimit = require('express-rate-limit');
 require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Enable CORS for frontend communication
-app.use(cors());
+// Hardened CORS policy: Allow only local dev server and your GitHub Pages domain
+const allowedOrigins = [
+  'http://localhost:8000',
+  'http://127.0.0.1:8000',
+  'https://vishesh1108.github.io'
+];
+
+app.use(cors({
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like curl, mobile apps, or direct API tests)
+    if (!origin) return callback(null, true);
+    
+    const isAllowed = allowedOrigins.includes(origin) || 
+                      origin.startsWith('https://vishesh1108.github.io');
+                      
+    if (!isAllowed) {
+      return callback(new Error('CORS policy: Access denied for this origin.'), false);
+    }
+    return callback(null, true);
+  }
+}));
+
 app.use(express.json());
+
+// Rate Limiter: Prevent API key abuse by limiting IPs to 60 requests per 15 minutes
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 60, // Limit each IP to 60 requests per window
+  message: { error: 'Too many requests. Please try again in 15 minutes.' }
+});
+
+// Apply rate limiter to the sentence generation API
+app.use('/api/', apiLimiter);
 
 // Main endpoint to generate sentences
 app.get('/api/sentences', async (req, res) => {
