@@ -1895,3 +1895,95 @@ button, input, select {
   100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
 }
 
+/* --- VOCAL PLAYBACK HIGHLIGHT WIDGET --- */
+.vocal-widget-container {
+  background-color: var(--bg-app);
+  border: var(--border-width) solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: 12px;
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.vocal-widget-container.hidden {
+  display: none !important;
+}
+
+.vocal-widget-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.vocal-play-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: none;
+  background-color: var(--color-primary);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  font-size: 0.8rem;
+}
+
+.vocal-play-btn:hover {
+  background-color: #4338ca;
+  transform: scale(1.05);
+}
+
+.vocal-speed-chips {
+  display: flex;
+  gap: 4px;
+}
+
+.vocal-speed-chip {
+  padding: 2px 8px;
+  border-radius: 12px;
+  border: var(--border-width) solid var(--border-color);
+  background-color: var(--bg-drawer);
+  color: var(--text-secondary);
+  font-size: 0.65rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.vocal-speed-chip.active {
+  background-color: var(--color-primary);
+  color: #ffffff;
+  border-color: transparent;
+}
+
+.vocal-speed-chip:hover:not(.active) {
+  background-color: var(--color-primary-light);
+  color: var(--color-primary);
+}
+
+.vocal-sentence-display {
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: var(--text-primary);
+  word-wrap: break-word;
+}
+
+.vocal-word-span {
+  display: inline-block;
+  padding: 1px 3px;
+  border-radius: var(--radius-xs);
+  transition: all 0.1s ease;
+}
+
+.vocal-word-span.highlight-active {
+  background-color: #fef08a; /* soft yellow background */
+  color: #854d0e;            /* dark yellow/brown text */
+  font-weight: 700;
+  transform: scale(1.05);
+}
+

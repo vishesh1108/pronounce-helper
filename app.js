@@ -1308,52 +1308,52 @@ document.addEventListener("DOMContentLoaded", () => {
   function generateLocalSentences(word) {
     const lower = word.toLowerCase();
     
-    // High-quality pre-baked overrides for common demo words
+    // High-quality pre-baked overrides for common demo words (extremely simple)
     const overrides = {
       technology: [
-        "Modern technology changes the way we live and work.",
-        "The classroom integrates advanced technology to help students learn.",
-        "Many people rely on mobile technology for their daily tasks.",
-        "Our company is investing in new software technology.",
-        "It is fascinating to see how rapidly technology evolves."
+        "We use technology at school.",
+        "He likes this new technology.",
+        "Is technology good or bad?",
+        "She studies technology today.",
+        "This is a simple technology."
       ],
       student: [
-        "The college student is studying hard for the final exams.",
-        "Every student has a unique way of learning new words.",
-        "She was a bright student who always asked interesting questions.",
-        "The teacher gave the student some helpful pronunciation guides.",
-        "He is a student of English literature at the university."
+        "The student reads a book.",
+        "He is a good student.",
+        "I see a student there.",
+        "The student writes on paper.",
+        "We help the student learn."
       ],
       unbelievable: [
-        "His progress in English pronunciation is absolutely unbelievable.",
-        "The scenic view from the top of the mountain was unbelievable.",
-        "It is unbelievable that they completed the project in one day.",
-        "She told an unbelievable story about her travels.",
-        "Winning the spelling competition was an unbelievable experience."
+        "The view is unbelievable.",
+        "She has an unbelievable dog.",
+        "That story is unbelievable.",
+        "He did an unbelievable job.",
+        "It was an unbelievable day."
       ],
       pronunciation: [
-        "Working on your pronunciation helps you speak English clearly.",
-        "The correct pronunciation of this word is tricky for beginners.",
-        "Practice makes your pronunciation sound more natural over time.",
-        "He used a dictionary to look up the phonetic guide and pronunciation.",
-        "Listen to native speakers to improve your English pronunciation."
+        "I practice my pronunciation.",
+        "His pronunciation is very clear.",
+        "We hear the pronunciation.",
+        "This is a hard pronunciation.",
+        "She helps me with pronunciation."
       ]
     };
 
     if (overrides[lower]) return overrides[lower];
 
-    // Smart contextual sentence templates for arbitrary words
+    // Smart contextual sentence templates for arbitrary words (extremely simple words)
     const templates = [
-      "I would love to learn more about {word} when I have time.",
-      "Can you explain the exact meaning of {word}?",
-      "We need to focus on {word} to improve our final results.",
-      "She spoke about {word} during her presentation yesterday.",
-      "Understanding the concept of {word} can be quite challenging.",
-      "It is important to integrate {word} into our daily routine.",
-      "He did not know how to spell {word} correctly on the test.",
-      "The book provides a detailed explanation of {word}.",
-      "They had a long discussion about {word} last night.",
-      "Could you give me an example of {word} in a sentence?"
+      "I want to see the {word}.",
+      "Do you like this {word}?",
+      "She has a new {word}.",
+      "He can find the {word}.",
+      "We read about the {word}.",
+      "Look at that big {word}.",
+      "They have a good {word}.",
+      "Give me the {word} now.",
+      "This {word} is very easy.",
+      "I like to talk about {word}."
     ];
 
     // Shuffle and pick 5 templates
@@ -1466,23 +1466,42 @@ document.addEventListener("DOMContentLoaded", () => {
             <button class="record-speech-btn" title="Practice Speaking">
               <i class="fa-solid fa-microphone"></i>
             </button>
-            <button class="vocal-guide-btn hidden" title="Listen to Sentence">
+            <button class="vocal-guide-btn hidden" title="Vocal Guide (Listen)">
               <i class="fa-solid fa-volume-high"></i>
             </button>
           </div>
         </div>
+        <div class="vocal-widget-container hidden"></div>
       `;
 
       const recordBtn = item.querySelector(".record-speech-btn");
       const vocalBtn = item.querySelector(".vocal-guide-btn");
       const feedbackEl = item.querySelector(".sentence-feedback");
+      const widgetContainer = item.querySelector(".vocal-widget-container");
+      let vocalWidgetInstance = null;
 
       recordBtn.addEventListener("click", () => {
-        startSpeechRecognition(sentence, recordBtn, feedbackEl, vocalBtn);
+        // Stop and close vocal widget if open
+        if (vocalWidgetInstance) {
+          vocalWidgetInstance.destroy();
+          vocalWidgetInstance = null;
+          widgetContainer.classList.add("hidden");
+        }
+        startSpeechRecognition(sentence, recordBtn, feedbackEl, vocalBtn, word);
       });
 
       vocalBtn.addEventListener("click", () => {
-        speakSentence(sentence);
+        const isHidden = widgetContainer.classList.contains("hidden");
+        if (isHidden) {
+          widgetContainer.classList.remove("hidden");
+          vocalWidgetInstance = createVocalWidget(sentence, widgetContainer);
+        } else {
+          if (vocalWidgetInstance) {
+            vocalWidgetInstance.destroy();
+            vocalWidgetInstance = null;
+          }
+          widgetContainer.classList.add("hidden");
+        }
       });
 
       panelEl.appendChild(item);
@@ -1492,7 +1511,7 @@ document.addEventListener("DOMContentLoaded", () => {
   let speechRecognition = null;
   let activeRecognitionBtn = null;
 
-  function startSpeechRecognition(targetSentence, buttonEl, feedbackEl, guideBtnEl) {
+  function startSpeechRecognition(targetSentence, buttonEl, feedbackEl, guideBtnEl, targetWord) {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
       showToast("Speech recognition is not supported in this browser. Please use Chrome, Edge, or Safari.");
@@ -1509,6 +1528,7 @@ document.addEventListener("DOMContentLoaded", () => {
     activeRecognitionBtn = buttonEl;
     buttonEl.className = "record-speech-btn recording";
     buttonEl.innerHTML = '<i class="fa-solid fa-microphone-lines"></i>';
+    buttonEl.setAttribute("title", "Listening...");
 
     feedbackEl.classList.add("hidden");
     feedbackEl.innerHTML = "";
@@ -1522,11 +1542,12 @@ document.addEventListener("DOMContentLoaded", () => {
       const spokenText = event.results[0][0].transcript;
       console.log("Spoken sentence:", spokenText);
 
-      const isCorrect = verifySpeech(targetSentence, spokenText);
+      const isCorrect = verifySpeech(targetSentence, spokenText, targetWord);
 
       if (isCorrect) {
         buttonEl.className = "record-speech-btn success";
         buttonEl.innerHTML = '<i class="fa-solid fa-check"></i>';
+        buttonEl.setAttribute("title", "Pronounced Correctly!");
 
         const successMsgs = [
           "Muah! You nailed it! 💋",
@@ -1540,8 +1561,10 @@ document.addEventListener("DOMContentLoaded", () => {
         feedbackEl.classList.remove("hidden");
         guideBtnEl.classList.add("hidden");
       } else {
+        // Change button to a retry icon (circular arrow) as requested
         buttonEl.className = "record-speech-btn failed";
-        buttonEl.innerHTML = '<i class="fa-solid fa-xmark"></i>';
+        buttonEl.innerHTML = '<i class="fa-solid fa-rotate-right"></i>';
+        buttonEl.setAttribute("title", "Retry Speaking");
 
         const retryMsgs = [
           "Retry! You got this! 💪",
@@ -1553,7 +1576,7 @@ document.addEventListener("DOMContentLoaded", () => {
         feedbackEl.className = "sentence-feedback failed";
         feedbackEl.innerHTML = `<i class="fa-solid fa-triangle-exclamation"></i> <span>${msg}</span>`;
         feedbackEl.classList.remove("hidden");
-        guideBtnEl.classList.remove("hidden"); // reveal pronunciation helper speaker
+        guideBtnEl.classList.remove("hidden"); // reveal listen speaker
       }
     };
 
@@ -1561,6 +1584,7 @@ document.addEventListener("DOMContentLoaded", () => {
       console.error("Speech recognition error:", e);
       buttonEl.className = "record-speech-btn";
       buttonEl.innerHTML = '<i class="fa-solid fa-microphone"></i>';
+      buttonEl.setAttribute("title", "Practice Speaking");
       if (e.error !== 'aborted') {
         showToast(`Speech recognition error: ${e.error}`);
       }
@@ -1572,18 +1596,36 @@ document.addEventListener("DOMContentLoaded", () => {
       if (buttonEl.className === "record-speech-btn recording") {
         buttonEl.className = "record-speech-btn";
         buttonEl.innerHTML = '<i class="fa-solid fa-microphone"></i>';
+        buttonEl.setAttribute("title", "Practice Speaking");
       }
     };
 
     speechRecognition.start();
   }
 
-  function verifySpeech(target, spoken) {
+  function verifySpeech(target, spoken, targetWord) {
+    const spokenLower = spoken.toLowerCase();
+    const cleanTargetWord = targetWord.toLowerCase().replace(/[^\w\s]/g, "");
+
     const tWords = target.toLowerCase().replace(/[^\w\s]/g, "").split(/\s+/).filter(Boolean);
-    const sWords = spoken.toLowerCase().replace(/[^\w\s]/g, "").split(/\s+/).filter(Boolean);
+    const sWords = spokenLower.replace(/[^\w\s]/g, "").split(/\s+/).filter(Boolean);
 
     if (tWords.length === 0) return false;
 
+    // 1. Force check: The target practice word MUST be present in the spoken transcription!
+    const hasTargetWord = sWords.some(w => {
+      return w === cleanTargetWord || 
+             w === cleanTargetWord + 's' || 
+             (cleanTargetWord.endsWith('s') && w === cleanTargetWord.slice(0, -1)) ||
+             (cleanTargetWord.length >= 4 && (w.startsWith(cleanTargetWord) || cleanTargetWord.startsWith(w)));
+    });
+
+    if (!hasTargetWord) {
+      console.log(`Speech verification failed: Spoken text did not contain target word "${targetWord}".`);
+      return false;
+    }
+
+    // 2. Sequence check for surrounding simple words
     let matchCount = 0;
     let sIdx = 0;
 
@@ -1596,23 +1638,130 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     const ratio = matchCount / tWords.length;
-    return ratio >= 0.8; // 80% threshold
+    return ratio >= 0.85; // Slightly stricter 85% word match threshold
   }
 
-  function speakSentence(text) {
-    if (!window.speechSynthesis) return;
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = "en-US";
-    utterance.rate = state.speechSpeed;
+  // --- DYNAMIC INTERACTIVE SENTENCE READER WITH REAL-TIME SPEECH SYNTHESIS WORD HIGHLIGHTING ---
+  function createVocalWidget(sentence, containerEl) {
+    containerEl.innerHTML = `
+      <div class="vocal-widget-controls">
+        <button class="vocal-play-btn" title="Play Guide"><i class="fa-solid fa-play"></i></button>
+        <div class="vocal-speed-chips">
+          <button class="vocal-speed-chip" data-speed="0.6">Very Slow</button>
+          <button class="vocal-speed-chip active" data-speed="0.8">Slow</button>
+          <button class="vocal-speed-chip" data-speed="1.0">Normal</button>
+        </div>
+      </div>
+      <div class="vocal-sentence-display"></div>
+    `;
 
-    const voices = window.speechSynthesis.getVoices();
-    const engVoice = voices.find(v => v.lang.startsWith("en-IN")) ||
-                     voices.find(v => v.lang.startsWith("en-US")) ||
-                     voices.find(v => v.lang.startsWith("en"));
-    if (engVoice) utterance.voice = engVoice;
+    const playBtn = containerEl.querySelector(".vocal-play-btn");
+    const speedChips = containerEl.querySelectorAll(".vocal-speed-chip");
+    const displayEl = containerEl.querySelector(".vocal-sentence-display");
 
-    window.speechSynthesis.speak(utterance);
+    // Track word spans with start and end character indexes in target text
+    const words = [];
+    let currentIndex = 0;
+    sentence.split(/(\s+)/).forEach(part => {
+      if (part.trim().length > 0) {
+        words.push({
+          text: part,
+          start: currentIndex,
+          end: currentIndex + part.length
+        });
+      }
+      currentIndex += part.length;
+    });
+
+    // Render words wrapped in spans
+    displayEl.innerHTML = "";
+    const wordSpans = words.map(w => {
+      const span = document.createElement("span");
+      span.className = "vocal-word-span";
+      span.innerText = w.text;
+      displayEl.appendChild(span);
+      // Append space
+      const space = document.createTextNode(" ");
+      displayEl.appendChild(space);
+      return span;
+    });
+
+    let utterance = null;
+    let isSpeaking = false;
+    let currentSpeed = 0.8;
+
+    speedChips.forEach(chip => {
+      chip.addEventListener("click", () => {
+        speedChips.forEach(c => c.classList.remove("active"));
+        chip.classList.add("active");
+        currentSpeed = parseFloat(chip.dataset.speed);
+        
+        if (isSpeaking) {
+          stopSpeech();
+          startSpeech();
+        }
+      });
+    });
+
+    function startSpeech() {
+      if (!window.speechSynthesis) return;
+      window.speechSynthesis.cancel();
+
+      utterance = new SpeechSynthesisUtterance(sentence);
+      utterance.lang = "en-US";
+      utterance.rate = currentSpeed;
+
+      const voices = window.speechSynthesis.getVoices();
+      const engVoice = voices.find(v => v.lang.startsWith("en-IN")) ||
+                       voices.find(v => v.lang.startsWith("en-US")) ||
+                       voices.find(v => v.lang.startsWith("en"));
+      if (engVoice) utterance.voice = engVoice;
+
+      utterance.onboundary = (event) => {
+        if (event.name === "word") {
+          const charIndex = event.charIndex;
+          const activeIdx = words.findIndex(w => charIndex >= w.start && charIndex < w.end);
+          
+          wordSpans.forEach(s => s.classList.remove("highlight-active"));
+          if (activeIdx !== -1 && wordSpans[activeIdx]) {
+            wordSpans[activeIdx].classList.add("highlight-active");
+          }
+        }
+      };
+
+      utterance.onend = () => {
+        stopSpeech();
+      };
+
+      utterance.onerror = () => {
+        stopSpeech();
+      };
+
+      isSpeaking = true;
+      playBtn.innerHTML = '<i class="fa-solid fa-pause"></i>';
+      window.speechSynthesis.speak(utterance);
+    }
+
+    function stopSpeech() {
+      if (window.speechSynthesis) {
+        window.speechSynthesis.cancel();
+      }
+      isSpeaking = false;
+      playBtn.innerHTML = '<i class="fa-solid fa-play"></i>';
+      wordSpans.forEach(s => s.classList.remove("highlight-active"));
+    }
+
+    playBtn.addEventListener("click", () => {
+      if (isSpeaking) {
+        stopSpeech();
+      } else {
+        startSpeech();
+      }
+    });
+
+    return {
+      destroy: () => stopSpeech()
+    };
   }
 
   // --- UTILS ---
