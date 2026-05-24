@@ -1292,6 +1292,7 @@ document.addEventListener("DOMContentLoaded", () => {
       if (response.ok) {
         const data = await response.json();
         if (data.sentences && data.sentences.length === 5) {
+          console.log(`[Practice Mode] Sentences successfully loaded from live AI API for: "${word}"`);
           state.practiceSentences[lowerWord] = data.sentences;
           localStorage.setItem("ph_word_sentences", JSON.stringify(state.practiceSentences));
           return data.sentences;
