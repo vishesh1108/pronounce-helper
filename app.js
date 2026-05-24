@@ -1260,9 +1260,20 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function importApiKeyFromUrl() {
     const urlParams = new URLSearchParams(window.location.search);
-    const queryKey = urlParams.get('key');
+    const queryKey = urlParams.get('key') || urlParams.get('gemini_key');
+    const groqKey = urlParams.get('groq_key');
+    let imported = false;
+
     if (queryKey) {
       localStorage.setItem('ph_gemini_api_key', queryKey);
+      imported = true;
+    }
+    if (groqKey) {
+      localStorage.setItem('ph_groq_api_key', groqKey);
+      imported = true;
+    }
+
+    if (imported) {
       const cleanUrl = window.location.protocol + "//" + window.location.host + window.location.pathname;
       window.history.replaceState({ path: cleanUrl }, '', cleanUrl);
       setTimeout(() => showToast('AI API Key configured successfully!'), 800);
@@ -1270,7 +1281,10 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // --- PRACTICE MODE DYNAMIC GENERATION & SPEECH RECOGNITION ---
-  const BACKEND_URL = "https://pronounce-helper-vishesh-chokhanis-projects.vercel.app"; // Set to your live vercel backend URL
+  // Dynamically target localhost for development, otherwise use the live production server
+  const BACKEND_URL = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
+    ? "http://localhost:3000"
+    : "https://pronounce-helper-vishesh-chokhanis-projects.vercel.app";
 
   async function getPracticeSentences(word) {
     const lowerWord = word.toLowerCase();
@@ -1279,24 +1293,42 @@ document.addEventListener("DOMContentLoaded", () => {
       return state.practiceSentences[lowerWord];
     }
 
-    // Try fetching from the cloud backend
+    // Try fetching from the backend
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 3000); // 3-second timeout
+      const timeoutId = setTimeout(() => controller.abort(), 6000); // 6-second timeout for slower requests
+
+      const headers = {
+        'Content-Type': 'application/json'
+      };
+
+      // Pass client-side keys if configured in localStorage
+      const geminiKey = localStorage.getItem('ph_gemini_api_key');
+      if (geminiKey) {
+        headers['x-gemini-api-key'] = geminiKey;
+      }
+      const groqKey = localStorage.getItem('ph_groq_api_key');
+      if (groqKey) {
+        headers['x-groq-api-key'] = groqKey;
+      }
 
       const response = await fetch(`${BACKEND_URL}/api/sentences?word=${encodeURIComponent(word)}`, {
-        signal: controller.signal
+        signal: controller.signal,
+        headers: headers
       });
       clearTimeout(timeoutId);
 
       if (response.ok) {
         const data = await response.json();
         if (data.sentences && data.sentences.length === 5) {
-          console.log(`[Practice Mode] Sentences successfully loaded from live AI API for: "${word}"`);
+          console.log(`[Practice Mode] Sentences successfully loaded from backend AI API for: "${word}"`);
           state.practiceSentences[lowerWord] = data.sentences;
           localStorage.setItem("ph_word_sentences", JSON.stringify(state.practiceSentences));
           return data.sentences;
         }
+      } else {
+        const errData = await response.json().catch(() => ({}));
+        console.warn(`Backend returned error status ${response.status}:`, errData.error || 'Unknown error');
       }
     } catch (err) {
       console.warn(`Backend generation failed or timed out for "${word}". Using local template engine fallback.`, err.message);

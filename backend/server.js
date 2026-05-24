@@ -25,7 +25,8 @@ app.use(cors({
       return callback(new Error('CORS policy: Access denied for this origin.'), false);
     }
     return callback(null, true);
-  }
+  },
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-gemini-api-key', 'x-groq-api-key']
 }));
 
 app.use(express.json());
@@ -66,11 +67,18 @@ Example output format:
   try {
     let sentences = null;
 
-    // 1. Try Groq (Llama) if GROQ_API_KEY is configured
-    if (process.env.GROQ_API_KEY) {
+    // Support client-passed API keys from request headers as overrides
+    const clientGroqKey = req.headers['x-groq-api-key'];
+    const clientGeminiKey = req.headers['x-gemini-api-key'];
+
+    const groqApiKey = clientGroqKey || process.env.GROQ_API_KEY;
+    const geminiApiKey = clientGeminiKey || process.env.GEMINI_API_KEY;
+
+    // 1. Try Groq (Llama) if configured
+    if (groqApiKey) {
       console.log('Using Groq API...');
       const Groq = require('groq-sdk');
-      const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+      const groq = new Groq({ apiKey: groqApiKey });
       
       const completion = await groq.chat.completions.create({
         messages: [{ role: 'user', content: prompt }],
@@ -82,14 +90,11 @@ Example output format:
       const responseText = completion.choices[0]?.message?.content || '';
       sentences = parseJsonArray(responseText);
     } 
-    // 2. Try Gemini if GEMINI_API_KEY is configured (and Groq was not used)
-    else if (process.env.GEMINI_API_KEY) {
+    // 2. Try Gemini if configured (and Groq was not used)
+    else if (geminiApiKey) {
       console.log('Using Gemini API...');
-      const { GoogleGenAI } = require('@google/generative-ai');
-      const { GoogleGenAI: GenAI } = require('@google/generative-ai');
-      // Using standard package initialization
       const { GoogleGenerativeAI } = require('@google/generative-ai');
-      const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+      const genAI = new GoogleGenerativeAI(geminiApiKey);
       const model = genAI.getGenerativeModel({ 
         model: 'gemini-2.5-flash',
         generationConfig: { responseMimeType: 'application/json' }
@@ -102,7 +107,7 @@ Example output format:
     // 3. Neither key is configured
     else {
       console.error('No API keys configured on backend.');
-      return res.status(500).json({ error: 'Server API keys not configured. Add GROQ_API_KEY or GEMINI_API_KEY to server environment.' });
+      return res.status(500).json({ error: 'Server API keys not configured. Please supply a GEMINI_API_KEY or GROQ_API_KEY in the app URL or server environment.' });
     }
 
     if (!sentences || sentences.length < 5) {
