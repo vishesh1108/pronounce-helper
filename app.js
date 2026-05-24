@@ -1288,19 +1288,18 @@ document.addEventListener("DOMContentLoaded", () => {
 
   async function getPracticeSentences(word) {
     const lowerWord = word.toLowerCase();
-    // Return from cache if we already generated sentences for this word
-    if (state.practiceSentences[lowerWord] && state.practiceSentences[lowerWord].length === 5) {
-      return state.practiceSentences[lowerWord];
+    // Return from cache if we already have AI-generated sentences for this word
+    const cached = state.practiceSentences[lowerWord];
+    if (cached && cached.length === 5 && !cached._isFallback) {
+      return cached;
     }
 
     // Try fetching from the backend
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 6000); // 6-second timeout for slower requests
+      const timeoutId = setTimeout(() => controller.abort(), 25000); // 25-second timeout for AI generation
 
-      const headers = {
-        'Content-Type': 'application/json'
-      };
+      const headers = {};
 
       // Pass client-side keys if configured in localStorage
       const geminiKey = localStorage.getItem('ph_gemini_api_key');
@@ -1335,9 +1334,11 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     // Fallback: Use local offline sentence generator
+    // Mark as fallback so we'll retry from API next time
     const fallbackSentences = generateLocalSentences(word);
+    fallbackSentences._isFallback = true;
     state.practiceSentences[lowerWord] = fallbackSentences;
-    localStorage.setItem("ph_word_sentences", JSON.stringify(state.practiceSentences));
+    // Don't persist fallback sentences — let the user retry from API next time
     return fallbackSentences;
   }
 

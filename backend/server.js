@@ -93,15 +93,21 @@ Example output format:
     // 2. Try Gemini if configured (and Groq was not used)
     else if (geminiApiKey) {
       console.log('Using Gemini API...');
-      const { GoogleGenerativeAI } = require('@google/generative-ai');
-      const genAI = new GoogleGenerativeAI(geminiApiKey);
-      const model = genAI.getGenerativeModel({ 
-        model: 'gemini-2.5-flash',
-        generationConfig: { responseMimeType: 'application/json' }
+      const { GoogleGenAI } = require('@google/genai');
+      const ai = new GoogleGenAI({ apiKey: geminiApiKey });
+
+      const result = await ai.models.generateContent({
+        model: 'gemini-2.0-flash',
+        contents: prompt,
+        config: {
+          responseMimeType: 'application/json',
+          temperature: 0.5,
+          maxOutputTokens: 300,
+        },
       });
 
-      const result = await model.generateContent(prompt);
-      const responseText = result.response.text();
+      const responseText = result.text;
+      console.log('Gemini raw response:', responseText);
       sentences = parseJsonArray(responseText);
     } 
     // 3. Neither key is configured
