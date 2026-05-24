@@ -101,6 +101,12 @@ Example output format:
         contents: prompt,
         config: {
           responseMimeType: 'application/json',
+          responseSchema: {
+            type: 'array',
+            items: {
+              type: 'string'
+            }
+          },
           temperature: 0.5,
           maxOutputTokens: 300,
         },
