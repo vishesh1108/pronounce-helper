@@ -1974,16 +1974,15 @@ button, input, select {
 }
 
 .vocal-word-span {
-  display: inline-block;
-  padding: 1px 3px;
+  display: inline;
+  padding: 2px 4px;
+  margin: 0 1px;
   border-radius: var(--radius-xs);
-  transition: all 0.1s ease;
+  transition: background-color 0.15s ease, color 0.15s ease;
 }
 
 .vocal-word-span.highlight-active {
-  background-color: #fef08a; /* soft yellow background */
-  color: #854d0e;            /* dark yellow/brown text */
-  font-weight: 700;
-  transform: scale(1.05);
+  background-color: var(--color-accent-light);
+  color: var(--color-accent);
 }
 

@@ -1079,6 +1079,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // --- SCREEN NAVIGATION ---
   function switchScreen(screenId) {
+    if (window.speechSynthesis) {
+      window.speechSynthesis.cancel();
+    }
     el.screenWelcome.classList.remove("active");
     el.screenScan.classList.remove("active");
     el.screenPractice.classList.remove("active");
@@ -1411,6 +1414,22 @@ document.addEventListener("DOMContentLoaded", () => {
       const panel = card.querySelector(".practice-sentences-panel");
       const speakBtn = card.querySelector(".speak-word-btn");
 
+      const collapsePanel = () => {
+        panel.classList.add("hidden");
+        toggleBtn.classList.remove("expanded");
+        panel.querySelectorAll(".sentence-item").forEach(item => {
+          if (item._vocalWidget) {
+            item._vocalWidget.destroy();
+            item._vocalWidget = null;
+          }
+          const widgetContainer = item.querySelector(".vocal-widget-container");
+          if (widgetContainer) {
+            widgetContainer.classList.add("hidden");
+            widgetContainer.innerHTML = "";
+          }
+        });
+      };
+
       // Header click expands panels
       header.addEventListener("click", async (e) => {
         if (e.target.closest("button")) return; // skip if clicking buttons
@@ -1421,8 +1440,7 @@ document.addEventListener("DOMContentLoaded", () => {
           toggleBtn.classList.add("expanded");
           await populateSentences(word, panel);
         } else {
-          panel.classList.add("hidden");
-          toggleBtn.classList.remove("expanded");
+          collapsePanel();
         }
       });
 
@@ -1433,8 +1451,7 @@ document.addEventListener("DOMContentLoaded", () => {
           toggleBtn.classList.add("expanded");
           await populateSentences(word, panel);
         } else {
-          panel.classList.add("hidden");
-          toggleBtn.classList.remove("expanded");
+          collapsePanel();
         }
       });
 
@@ -1485,6 +1502,7 @@ document.addEventListener("DOMContentLoaded", () => {
         if (vocalWidgetInstance) {
           vocalWidgetInstance.destroy();
           vocalWidgetInstance = null;
+          item._vocalWidget = null;
           widgetContainer.classList.add("hidden");
         }
         startSpeechRecognition(sentence, recordBtn, feedbackEl, vocalBtn, word);
@@ -1495,10 +1513,12 @@ document.addEventListener("DOMContentLoaded", () => {
         if (isHidden) {
           widgetContainer.classList.remove("hidden");
           vocalWidgetInstance = createVocalWidget(sentence, widgetContainer);
+          item._vocalWidget = vocalWidgetInstance;
         } else {
           if (vocalWidgetInstance) {
             vocalWidgetInstance.destroy();
             vocalWidgetInstance = null;
+            item._vocalWidget = null;
           }
           widgetContainer.classList.add("hidden");
         }
@@ -1691,6 +1711,7 @@ document.addEventListener("DOMContentLoaded", () => {
     let currentSpeed = 0.8;
     let checkBoundaryTimeout = null;
     let fallbackInterval = null;
+    let speakTimeout = null;
 
     speedChips.forEach(chip => {
       chip.addEventListener("click", () => {
@@ -1700,13 +1721,21 @@ document.addEventListener("DOMContentLoaded", () => {
         
         if (isSpeaking) {
           stopSpeech();
-          startSpeech();
+          // Small delay before restarting speech to let cancel settle
+          speakTimeout = setTimeout(() => {
+            startSpeech();
+          }, 150);
         }
       });
     });
 
     function startSpeech() {
       if (!window.speechSynthesis) return;
+
+      // Cancel any active speech synthesis and clear pending timeouts
+      if (speakTimeout) clearTimeout(speakTimeout);
+      if (checkBoundaryTimeout) clearTimeout(checkBoundaryTimeout);
+      if (fallbackInterval) clearTimeout(fallbackInterval);
       window.speechSynthesis.cancel();
 
       utterance = new SpeechSynthesisUtterance(sentence);
@@ -1714,7 +1743,11 @@ document.addEventListener("DOMContentLoaded", () => {
       utterance.rate = currentSpeed;
 
       const voices = window.speechSynthesis.getVoices();
-      const engVoice = voices.find(v => v.lang.startsWith("en-IN")) ||
+      // Prioritize local English voices to ensure onboundary fires reliably
+      const engVoice = voices.find(v => v.localService && v.lang.startsWith("en-IN")) ||
+                       voices.find(v => v.localService && v.lang.startsWith("en-US")) ||
+                       voices.find(v => v.localService && v.lang.startsWith("en")) ||
+                       voices.find(v => v.lang.startsWith("en-IN")) ||
                        voices.find(v => v.lang.startsWith("en-US")) ||
                        voices.find(v => v.lang.startsWith("en"));
       if (engVoice) utterance.voice = engVoice;
@@ -1727,8 +1760,24 @@ document.addEventListener("DOMContentLoaded", () => {
       utterance.onboundary = (event) => {
         if (event.name === "word") {
           hasFiredBoundary = true;
+          
+          // Clear fallback timer if it was running since native boundaries are now working
+          if (fallbackInterval) {
+            clearTimeout(fallbackInterval);
+            fallbackInterval = null;
+          }
+
           const charIndex = event.charIndex;
-          const activeIdx = words.findIndex(w => charIndex >= w.start && charIndex < w.end);
+          
+          // Find the word with the largest start index <= charIndex
+          let activeIdx = -1;
+          for (let i = 0; i < words.length; i++) {
+            if (charIndex >= words[i].start) {
+              activeIdx = i;
+            } else {
+              break;
+            }
+          }
           
           wordSpans.forEach(s => s.classList.remove("highlight-active"));
           if (activeIdx !== -1 && wordSpans[activeIdx]) {
@@ -1738,26 +1787,28 @@ document.addEventListener("DOMContentLoaded", () => {
       };
 
       utterance.onstart = () => {
-        // Safe check: if native boundary events don't fire within 800ms, run fallback timer
-        checkBoundaryTimeout = setTimeout(() => {
-          if (!hasFiredBoundary && isSpeaking) {
-            console.log("SpeechSynthesis onboundary did not fire. Running fallback word-highlight timer.");
-            startFallbackHighlighting();
-          }
-        }, 800);
+        // Start fallback highlighting immediately if native boundaries haven't already fired
+        if (!hasFiredBoundary && isSpeaking) {
+          startFallbackHighlighting();
+        }
       };
 
       utterance.onend = () => {
         stopSpeech();
       };
 
-      utterance.onerror = () => {
+      utterance.onerror = (e) => {
+        console.error("SpeechSynthesis error:", e);
         stopSpeech();
       };
 
       isSpeaking = true;
       playBtn.innerHTML = '<i class="fa-solid fa-pause"></i>';
-      window.speechSynthesis.speak(utterance);
+      
+      // Delay speak to allow cancel to settle
+      speakTimeout = setTimeout(() => {
+        window.speechSynthesis.speak(utterance);
+      }, 150);
     }
 
     function startFallbackHighlighting() {
@@ -1777,10 +1828,10 @@ document.addEventListener("DOMContentLoaded", () => {
           wordSpans[wordIdx].classList.add("highlight-active");
         }
         
-        // Estimate word duration based on character length (90ms per character at 1.0x speed)
+        // Estimate word duration with baseline pause (60ms per char + 80ms baseline)
         const wordText = words[wordIdx].text;
         const wordCharCount = wordText.replace(/[^\w]/g, "").length || 1;
-        const wordDuration = (wordCharCount * 90) / currentSpeed;
+        const wordDuration = (wordCharCount * 60 + 80) / currentSpeed;
         
         wordIdx++;
         fallbackInterval = setTimeout(highlightNext, wordDuration);
@@ -1790,6 +1841,9 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     function stopSpeech() {
+      if (speakTimeout) clearTimeout(speakTimeout);
+      speakTimeout = null;
+
       if (window.speechSynthesis) {
         window.speechSynthesis.cancel();
       }
