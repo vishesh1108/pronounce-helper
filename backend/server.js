@@ -97,7 +97,7 @@ Example output format:
       const ai = new GoogleGenAI({ apiKey: geminiApiKey });
 
       const result = await ai.models.generateContent({
-        model: 'gemini-2.0-flash',
+        model: 'gemini-2.5-flash',
         contents: prompt,
         config: {
           responseMimeType: 'application/json',
