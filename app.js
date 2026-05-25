@@ -12,9 +12,11 @@ if ('serviceWorker' in navigator) {
   });
 }
 
+// Global OCR Worker instance
+let tesseractWorker = null;
+
 document.addEventListener("DOMContentLoaded", () => {
   // --- STATE & CACHE INITIALIZATION ---
-  let tesseractWorker = null;
   function getSafeArray(key) {
     try {
       const item = localStorage.getItem(key);

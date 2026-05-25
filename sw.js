@@ -43,7 +43,10 @@ self.addEventListener('activate', (event) => {
 
 // Fetch: Serve from cache, fallback to network
 self.addEventListener('fetch', (event) => {
-  // Ignore non-GET requests (e.g. chrome-extension, etc.)
+  // Only handle http/https requests (ignore chrome-extension, data URIs, etc.)
+  if (!event.request.url.startsWith('http')) return;
+
+  // Ignore non-GET requests (e.g. POST, PUT, DELETE)
   if (event.request.method !== 'GET') return;
 
   const url = new URL(event.request.url);
