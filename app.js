@@ -13,7 +13,7 @@ if ('serviceWorker' in navigator) {
 }
 
 // Global OCR Worker instance
-let tesseractWorker = null;
+var tesseractWorker = null;
 
 document.addEventListener("DOMContentLoaded", () => {
   // --- STATE & CACHE INITIALIZATION ---

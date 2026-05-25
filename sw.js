@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pronounce-helper-v4';
+const CACHE_NAME = 'pronounce-helper-v5';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -74,7 +74,7 @@ self.addEventListener('fetch', (event) => {
           return cachedResponse;
         }
         return fetch(event.request).then((networkResponse) => {
-          if (networkResponse.status === 200) {
+          if (networkResponse.status === 200 && event.request.url.startsWith('http')) {
             const cacheCopy = networkResponse.clone();
             caches.open(CACHE_NAME).then((cache) => {
               cache.put(event.request, cacheCopy);
@@ -89,7 +89,7 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(
       caches.match(event.request).then((cachedResponse) => {
         const fetchPromise = fetch(event.request).then((networkResponse) => {
-          if (networkResponse.status === 200) {
+          if (networkResponse.status === 200 && event.request.url.startsWith('http')) {
             const cacheCopy = networkResponse.clone();
             caches.open(CACHE_NAME).then((cache) => {
               cache.put(event.request, cacheCopy);
