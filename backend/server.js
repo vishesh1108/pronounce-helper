@@ -10,6 +10,14 @@ const PORT = process.env.PORT || 3000;
 const allowedOrigins = [
   'http://localhost:8000',
   'http://127.0.0.1:8000',
+  'http://localhost:3000',
+  'http://127.0.0.1:3000',
+  'http://localhost:5173',
+  'http://127.0.0.1:5173',
+  'http://localhost:8080',
+  'http://127.0.0.1:8080',
+  'http://localhost:5000',
+  'http://127.0.0.1:5000',
   'https://vishesh1108.github.io'
 ];
 
@@ -18,11 +26,10 @@ app.use(cors({
     // Allow requests with no origin (like curl, mobile apps, or direct API tests)
     if (!origin) return callback(null, true);
     
-    const isAllowed = allowedOrigins.includes(origin) || 
-                      origin.startsWith('https://vishesh1108.github.io');
+    const isAllowed = allowedOrigins.includes(origin);
                       
     if (!isAllowed) {
-      return callback(new Error('CORS policy: Access denied for this origin.'), false);
+      return callback(null, false); // Gracefully reject CORS request without throwing server-side errors
     }
     return callback(null, true);
   },
@@ -176,6 +183,11 @@ function parseJsonArray(text) {
   return null;
 }
 
-app.listen(PORT, () => {
-  console.log(`Pronounce Helper Backend listening on port ${PORT}`);
-});
+// For local development (only listen if run directly)
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`Pronounce Helper Backend listening on port ${PORT}`);
+  });
+}
+
+module.exports = app;
