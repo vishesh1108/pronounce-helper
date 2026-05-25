@@ -9,7 +9,12 @@
   "routes": [
     {
       "src": "/api/(.*)",
-      "dest": "backend/server.js"
+      "dest": "backend/server.js",
+      "headers": {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET, OPTIONS, POST",
+        "Access-Control-Allow-Headers": "Content-Type, Authorization, x-gemini-api-key, x-groq-api-key"
+      }
     },
     {
       "src": "/(.*)",

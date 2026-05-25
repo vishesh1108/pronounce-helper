@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pronounce-helper-v5';
+const CACHE_NAME = 'pronounce-helper-v6';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -41,6 +41,20 @@ self.addEventListener('activate', (event) => {
   );
 });
 
+// Safe cache put helper — prevents errors from unsupported schemes (chrome-extension, etc.)
+function safeCachePut(request, response) {
+  try {
+    if (!request.url.startsWith('http')) return;
+    caches.open(CACHE_NAME).then((cache) => {
+      cache.put(request, response).catch(() => {
+        // Silently ignore cache put failures (unsupported schemes, quota exceeded, etc.)
+      });
+    });
+  } catch (e) {
+    // Ignore synchronous errors
+  }
+}
+
 // Fetch: Serve from cache, fallback to network
 self.addEventListener('fetch', (event) => {
   // Only handle http/https requests (ignore chrome-extension, data URIs, etc.)
@@ -74,11 +88,8 @@ self.addEventListener('fetch', (event) => {
           return cachedResponse;
         }
         return fetch(event.request).then((networkResponse) => {
-          if (networkResponse.status === 200 && event.request.url.startsWith('http')) {
-            const cacheCopy = networkResponse.clone();
-            caches.open(CACHE_NAME).then((cache) => {
-              cache.put(event.request, cacheCopy);
-            });
+          if (networkResponse.status === 200) {
+            safeCachePut(event.request, networkResponse.clone());
           }
           return networkResponse;
         });
@@ -89,17 +100,14 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(
       caches.match(event.request).then((cachedResponse) => {
         const fetchPromise = fetch(event.request).then((networkResponse) => {
-          if (networkResponse.status === 200 && event.request.url.startsWith('http')) {
-            const cacheCopy = networkResponse.clone();
-            caches.open(CACHE_NAME).then((cache) => {
-              cache.put(event.request, cacheCopy);
-            });
+          if (networkResponse.status === 200) {
+            safeCachePut(event.request, networkResponse.clone());
           }
           return networkResponse;
-        }).catch((err) => {
-          console.warn('[Service Worker] Network fetch failed, offline fallback.', err);
-          // Return a fallback response so we don't throw TypeError: Failed to convert value to 'Response'
-          return cachedResponse || new Response('Offline fallback unavailable', {
+        }).catch(() => {
+          // Network failed — return cached version or a proper offline fallback Response
+          if (cachedResponse) return cachedResponse;
+          return new Response('Offline fallback unavailable', {
             status: 503,
             statusText: 'Service Unavailable',
             headers: new Headers({ 'Content-Type': 'text/plain' })

@@ -8,22 +8,19 @@ const PORT = process.env.PORT || 3000;
 
 // Manual CORS middleware configuration
 app.use((req, res, next) => {
-  const allowedOrigins = [
-    'http://localhost:8000',
-    'http://127.0.0.1:8000',
-    'http://localhost:3000',
-    'http://127.0.0.1:3000',
-    'http://localhost:5173',
-    'http://127.0.0.1:5173',
-    'http://localhost:8080',
-    'http://127.0.0.1:8080',
-    'http://localhost:5000',
-    'http://127.0.0.1:5000',
-    'https://vishesh1108.github.io'
-  ];
-  
   const origin = req.headers.origin;
-  if (allowedOrigins.includes(origin)) {
+  
+  // Allow the origin if it matches any of these patterns:
+  // - Any localhost/127.0.0.1 port (for development)
+  // - Any Vercel preview deployment URL for this project
+  // - The GitHub Pages deployment
+  const isAllowed = origin && (
+    /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin) ||
+    /^https:\/\/pronounce-helper.*\.vercel\.app$/.test(origin) ||
+    origin === 'https://vishesh1108.github.io'
+  );
+  
+  if (isAllowed) {
     res.setHeader('Access-Control-Allow-Origin', origin);
   }
   
