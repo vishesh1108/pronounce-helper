@@ -4,6 +4,42 @@
     {
       "src": "backend/server.js",
       "use": "@vercel/node"
+    },
+    {
+      "src": "index.html",
+      "use": "@vercel/static"
+    },
+    {
+      "src": "app.js",
+      "use": "@vercel/static"
+    },
+    {
+      "src": "styles.css",
+      "use": "@vercel/static"
+    },
+    {
+      "src": "syllables.js",
+      "use": "@vercel/static"
+    },
+    {
+      "src": "manifest.json",
+      "use": "@vercel/static"
+    },
+    {
+      "src": "sw.js",
+      "use": "@vercel/static"
+    },
+    {
+      "src": "icon-192.png",
+      "use": "@vercel/static"
+    },
+    {
+      "src": "icon-512.png",
+      "use": "@vercel/static"
+    },
+    {
+      "src": "icon.svg",
+      "use": "@vercel/static"
     }
   ],
   "routes": [
@@ -17,8 +53,12 @@
       }
     },
     {
-      "src": "/(.*)",
+      "src": "/(.*\\.(js|css|html|json|png|svg|ico))",
       "dest": "/$1"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/index.html"
     }
   ]
 }
