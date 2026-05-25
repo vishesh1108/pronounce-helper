@@ -1,40 +1,42 @@
 const express = require('express');
-const cors = require('cors');
 const rateLimit = require('express-rate-limit');
 require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Hardened CORS policy: Allow only local dev server and your GitHub Pages domain
-const allowedOrigins = [
-  'http://localhost:8000',
-  'http://127.0.0.1:8000',
-  'http://localhost:3000',
-  'http://127.0.0.1:3000',
-  'http://localhost:5173',
-  'http://127.0.0.1:5173',
-  'http://localhost:8080',
-  'http://127.0.0.1:8080',
-  'http://localhost:5000',
-  'http://127.0.0.1:5000',
-  'https://vishesh1108.github.io'
-];
-
-app.use(cors({
-  origin: function (origin, callback) {
-    // Allow requests with no origin (like curl, mobile apps, or direct API tests)
-    if (!origin) return callback(null, true);
-    
-    const isAllowed = allowedOrigins.includes(origin);
-                      
-    if (!isAllowed) {
-      return callback(null, false); // Gracefully reject CORS request without throwing server-side errors
-    }
-    return callback(null, true);
-  },
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-gemini-api-key', 'x-groq-api-key']
-}));
+// Manual CORS middleware configuration
+app.use((req, res, next) => {
+  const allowedOrigins = [
+    'http://localhost:8000',
+    'http://127.0.0.1:8000',
+    'http://localhost:3000',
+    'http://127.0.0.1:3000',
+    'http://localhost:5173',
+    'http://127.0.0.1:5173',
+    'http://localhost:8080',
+    'http://127.0.0.1:8080',
+    'http://localhost:5000',
+    'http://127.0.0.1:5000',
+    'https://vishesh1108.github.io'
+  ];
+  
+  const origin = req.headers.origin;
+  if (allowedOrigins.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  }
+  
+  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS, POST, PUT, DELETE, PATCH');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-gemini-api-key, x-groq-api-key');
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  
+  // Handle preflight OPTIONS requests immediately
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(200);
+  }
+  
+  next();
+});
 
 app.use(express.json());
 
