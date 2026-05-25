@@ -1281,10 +1281,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // --- PRACTICE MODE DYNAMIC GENERATION & SPEECH RECOGNITION ---
-  // Dynamically target localhost for development, otherwise use the live production server
-  const BACKEND_URL = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
-    ? "http://localhost:3000"
-    : "https://pronounce-helper-vishesh-chokhanis-projects.vercel.app";
+  const BACKEND_URL = window.location.origin;
 
   async function getPracticeSentences(word) {
     const lowerWord = word.toLowerCase();

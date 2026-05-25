@@ -1,4 +1,5 @@
 const express = require('express');
+const path = require('path');
 const rateLimit = require('express-rate-limit');
 require('dotenv').config();
 
@@ -39,6 +40,9 @@ app.use((req, res, next) => {
 });
 
 app.use(express.json());
+
+// Serve static frontend files from the parent directory
+app.use(express.static(path.join(__dirname, '../')));
 
 // Rate Limiter: Prevent API key abuse by limiting IPs to 60 requests per 15 minutes
 const apiLimiter = rateLimit({
