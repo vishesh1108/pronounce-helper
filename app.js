@@ -57,6 +57,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const state = {
     originalImage: null,        // Original Image element (pre-processed)
+    rawUploadedImage: null,     // Raw un-warped image uploaded by the user
     ocrSourceImage: null,       // Scaled down image for OCR (max 1200px)
     previewSourceImage: null,   // Scaled down image for quick live preview (max 600px)
     processedImageSrc: null,    // Data URL of current rotated/filtered image
@@ -151,6 +152,7 @@ document.addEventListener("DOMContentLoaded", () => {
     valSensitivity: document.getElementById("val-sensitivity"),
     btnRotateLeft: document.getElementById("btn-rotate-left"),
     btnRotateRight: document.getElementById("btn-rotate-right"),
+    btnAdjustCrop: document.getElementById("btn-adjust-crop"),
     
     // Bottom Detail Drawer
     wordDetailDrawer: document.getElementById("word-detail-drawer"),
@@ -271,6 +273,39 @@ document.addEventListener("DOMContentLoaded", () => {
     
     el.btnAdjustImage.addEventListener("click", () => {
       el.imageAdjustmentsPanel.classList.toggle("hidden");
+    });
+    
+    el.btnAdjustCrop.addEventListener("click", () => {
+      if (!state.rawUploadedImage) {
+        showToast("Please upload an image first.");
+        return;
+      }
+      el.btnAdjustCrop.disabled = true;
+      window.ScannerWarper.initScannerUI(state.rawUploadedImage, async (flatCanvas) => {
+        el.btnAdjustCrop.disabled = false;
+        const flatImg = new Image();
+        flatImg.onload = async function() {
+          state.originalImage = flatImg;
+
+          switchScreen("scan");
+          showOCRLoading(true);
+          updateOCRProgress("Optimizing image size...", 0.05);
+
+          state.ocrSourceImage = await resizeImage(flatImg, 2000);
+          state.previewSourceImage = await resizeImage(flatImg, 600);
+
+          runOCRProcessing(state.ocrSourceImage);
+        };
+        flatImg.src = flatCanvas.toDataURL();
+      });
+
+      // Handle cancel button re-enabling
+      const cancelBtn = document.getElementById("btn-scanner-cancel");
+      if (cancelBtn) {
+        cancelBtn.addEventListener("click", () => {
+          el.btnAdjustCrop.disabled = false;
+        });
+      }
     });
     el.btnCloseAdjustments.addEventListener("click", () => {
       el.imageAdjustmentsPanel.classList.add("hidden");
@@ -451,24 +486,28 @@ document.addEventListener("DOMContentLoaded", () => {
     reader.onload = function(event) {
       const img = new Image();
       img.onload = function() {
-        // Trigger automated page boundary scanner
-        window.ScannerWarper.initScannerUI(img, async (flatCanvas) => {
-          const flatImg = new Image();
-          flatImg.onload = async function() {
-            state.originalImage = flatImg;
-            
-            switchScreen("scan");
-            showOCRLoading(true);
-            updateOCRProgress("Optimizing image size...", 0.05);
+        state.rawUploadedImage = img;
 
-            // Generate resized images for OCR and live previews (upgraded to 2000px for high-accuracy text rendering)
-            state.ocrSourceImage = await resizeImage(flatImg, 2000);
-            state.previewSourceImage = await resizeImage(flatImg, 600);
+        // Run automated page boundary detection and warping completely in the background (no popup clicks required!)
+        const corners = window.ScannerWarper.detectCorners(img);
+        const flatCanvas = window.ScannerWarper.warpPerspective(img, corners, 1200, 1600);
+        const deskewedCanvas = window.ScannerWarper.autoDeskew(flatCanvas);
 
-            runOCRProcessing(state.ocrSourceImage);
-          };
-          flatImg.src = flatCanvas.toDataURL();
-        });
+        const flatImg = new Image();
+        flatImg.onload = async function() {
+          state.originalImage = flatImg;
+          
+          switchScreen("scan");
+          showOCRLoading(true);
+          updateOCRProgress("Optimizing image size...", 0.05);
+
+          // Generate resized images for OCR and live previews (upgraded to 2000px for high-accuracy text rendering)
+          state.ocrSourceImage = await resizeImage(flatImg, 2000);
+          state.previewSourceImage = await resizeImage(flatImg, 600);
+
+          runOCRProcessing(state.ocrSourceImage);
+        };
+        flatImg.src = deskewedCanvas.toDataURL();
       };
       img.src = event.target.result;
     };
@@ -784,6 +823,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const img = new Image();
     img.onload = async function() {
+      state.rawUploadedImage = img;
       state.originalImage = img;
       
       switchScreen("scan");
@@ -879,6 +919,7 @@ document.addEventListener("DOMContentLoaded", () => {
       el.btnRotateLeft.disabled = true;
       el.btnRotateRight.disabled = true;
       el.btnAdjustImage.disabled = true;
+      el.btnAdjustCrop.disabled = true;
       el.btnUploadNew.disabled = true;
     } else {
       el.ocrLoadingPanel.classList.add("hidden");
@@ -887,6 +928,7 @@ document.addEventListener("DOMContentLoaded", () => {
       el.btnRotateLeft.disabled = false;
       el.btnRotateRight.disabled = false;
       el.btnAdjustImage.disabled = false;
+      el.btnAdjustCrop.disabled = false;
       el.btnUploadNew.disabled = false;
     }
   }
