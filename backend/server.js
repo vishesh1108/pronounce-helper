@@ -83,34 +83,68 @@ Example output format:
     const clientGroqKey = req.headers['x-groq-api-key'];
     const clientGeminiKey = req.headers['x-gemini-api-key'];
 
-    const groqApiKey = clientGroqKey || process.env.GROQ_API_KEY || process.env.GROK_API_KEY;
-    const geminiApiKey = clientGeminiKey || process.env.GEMINI_API_KEY;
+    const rawGroqKey = clientGroqKey || process.env.GROQ_API_KEY || process.env.GROK_API_KEY || '';
+    const rawGeminiKey = clientGeminiKey || process.env.GEMINI_API_KEY || '';
 
-    // 1. Try Groq (Llama) if configured
+    // Clean keys defensively: strip out spaces, newlines, and carriage returns
+    const groqApiKey = rawGroqKey.trim().replace(/[\r\n\s]+/g, "");
+    const geminiApiKey = rawGeminiKey.trim().replace(/[\r\n\s]+/g, "");
+
+    // 1. Try Groq or xAI (Grok) if configured
     if (groqApiKey) {
       try {
-        console.log('Using Groq API...');
-        const Groq = require('groq-sdk');
-        const groq = new Groq({ apiKey: groqApiKey });
-        
-        const completion = await groq.chat.completions.create({
-          messages: [{ role: 'user', content: prompt }],
-          model: 'llama-3.1-8b-instant', // fast, cheap, high-quality open-source model
-          temperature: 0.5,
-          max_tokens: 300,
-        });
+        if (groqApiKey.startsWith('xai-') || groqApiKey.startsWith('xAI-')) {
+          console.log('Using xAI (Grok) API...');
+          
+          const response = await fetch('https://api.x.ai/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${groqApiKey}`
+            },
+            body: JSON.stringify({
+              messages: [{ role: 'user', content: prompt }],
+              model: 'grok-beta',
+              temperature: 0.5,
+              stream: false
+            })
+          });
 
-        const responseText = completion.choices[0]?.message?.content || '';
-        sentences = parseJsonArray(responseText);
-        if (!sentences || sentences.length < 5) {
-          throw new Error('Failed to parse 5 sentences from Groq response.');
+          if (!response.ok) {
+            const errText = await response.text();
+            throw new Error(`xAI Error status ${response.status}: ${errText}`);
+          }
+
+          const data = await response.json();
+          const responseText = data.choices[0]?.message?.content || '';
+          sentences = parseJsonArray(responseText);
+          if (!sentences || sentences.length < 5) {
+            throw new Error('Failed to parse 5 sentences from xAI (Grok) response.');
+          }
+        } else {
+          console.log('Using Groq API...');
+          const Groq = require('groq-sdk');
+          const groq = new Groq({ apiKey: groqApiKey });
+          
+          const completion = await groq.chat.completions.create({
+            messages: [{ role: 'user', content: prompt }],
+            model: 'llama-3.1-8b-instant', // fast, cheap, high-quality open-source model
+            temperature: 0.5,
+            max_tokens: 300,
+          });
+
+          const responseText = completion.choices[0]?.message?.content || '';
+          sentences = parseJsonArray(responseText);
+          if (!sentences || sentences.length < 5) {
+            throw new Error('Failed to parse 5 sentences from Groq response.');
+          }
         }
       } catch (groqError) {
-        console.warn('Groq API call failed:', groqError.message);
-        errors.push(`Groq Failed: ${groqError.message}`);
+        console.warn('Groq/xAI API call failed:', groqError.message);
+        errors.push(`Groq/xAI Failed: ${groqError.message}`);
       }
     } else {
-      errors.push('Groq skipped: No GROQ_API_KEY or GROK_API_KEY configured');
+      errors.push('Groq/xAI skipped: No GROQ_API_KEY or GROK_API_KEY configured');
     }
 
     // 2. Try Gemini if configured (and Groq was not used or failed)
