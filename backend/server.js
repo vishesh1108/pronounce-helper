@@ -76,6 +76,7 @@ Example output format:
 
   try {
     let sentences = null;
+    let rawResponse = null;
 
     // Support client-passed API keys from request headers as overrides
     const clientGroqKey = req.headers['x-groq-api-key'];
@@ -99,9 +100,11 @@ Example output format:
         });
 
         const responseText = completion.choices[0]?.message?.content || '';
+        rawResponse = responseText;
         sentences = parseJsonArray(responseText);
       } catch (groqError) {
         console.warn('Groq API call failed:', groqError.message);
+        rawResponse = `Groq API Error: ${groqError.message}`;
       }
     } 
     // 2. Try Gemini if configured (and Groq was not used or failed)
@@ -127,6 +130,7 @@ Example output format:
       });
 
       const responseText = result.text;
+      rawResponse = responseText;
       console.log('Gemini raw response:', responseText);
       sentences = parseJsonArray(responseText);
     } 
@@ -137,7 +141,7 @@ Example output format:
     }
 
     if (!sentences || sentences.length < 5) {
-      throw new Error('Failed to parse a valid list of 5 sentences from AI response.');
+      throw new Error(`Failed to parse a valid list of 5 sentences from AI response. Raw Response: ${JSON.stringify(rawResponse)}`);
     }
 
     console.log('Successfully generated sentences!');
