@@ -73,6 +73,7 @@ document.addEventListener("DOMContentLoaded", () => {
     ocrWords: [],               // Words extracted from OCR
     selectedWord: null,         // Currently selected word string
     speechSpeed: 0.8,           // Speed of TTS (0.6, 0.8, 1.0)
+    selectedVoiceName: localStorage.getItem("ph_selected_voice") || null,
     history: getSafeArray("ph_history"),
     bookmarks: getSafeArray("ph_bookmarks"),
     wordTaps: getSafeObject("ph_word_taps"),
@@ -165,6 +166,7 @@ document.addEventListener("DOMContentLoaded", () => {
     detailPhonetics: document.getElementById("detail-phonetics"),
     detailDefinition: document.getElementById("detail-definition"),
     speedChips: document.querySelectorAll(".speed-btn-chip"),
+    selectSpeechVoice: document.getElementById("select-speech-voice"),
     
     // Sidebar Drawer
     sidebarDrawer: document.getElementById("sidebar-drawer"),
@@ -389,6 +391,14 @@ document.addEventListener("DOMContentLoaded", () => {
         if (state.selectedWord) speakWord(state.selectedWord);
       });
     });
+
+    if (el.selectSpeechVoice) {
+      el.selectSpeechVoice.addEventListener("change", (e) => {
+        state.selectedVoiceName = e.target.value;
+        localStorage.setItem("ph_selected_voice", e.target.value);
+        if (state.selectedWord) speakWord(state.selectedWord);
+      });
+    }
 
     // History and Bookmark sidebar controls
     el.btnHistory.addEventListener("click", () => openSidebar("history"));
@@ -1101,6 +1111,85 @@ document.addEventListener("DOMContentLoaded", () => {
   // Translation API removed
 
   // --- TEXT-TO-SPEECH (TTS) ---
+  // --- TEXT-TO-SPEECH (TTS) ---
+  let availableVoices = [];
+
+  function populateVoiceList() {
+    if (!window.speechSynthesis) return;
+    
+    availableVoices = window.speechSynthesis.getVoices();
+    const englishVoices = availableVoices.filter(v => v.lang.startsWith("en") || v.lang.startsWith("EN"));
+    
+    if (el.selectSpeechVoice) {
+      el.selectSpeechVoice.innerHTML = "";
+      
+      if (englishVoices.length === 0) {
+        const option = document.createElement("option");
+        option.textContent = "Default System Voice";
+        option.value = "";
+        el.selectSpeechVoice.appendChild(option);
+        return;
+      }
+      
+      // Sort: Indian English (en-IN) first, then British English, US English, others
+      englishVoices.sort((a, b) => {
+        const aIsIndian = a.lang === "en-IN" || a.lang === "en_IN" || a.lang.startsWith("en-IN") || a.lang.startsWith("en_in");
+        const bIsIndian = b.lang === "en-IN" || b.lang === "en_IN" || b.lang.startsWith("en-IN") || b.lang.startsWith("en_in");
+        if (aIsIndian && !bIsIndian) return -1;
+        if (!aIsIndian && bIsIndian) return 1;
+
+        const aIsGB = a.lang.startsWith("en-GB") || a.lang.startsWith("en-gb");
+        const bIsGB = b.lang.startsWith("en-GB") || b.lang.startsWith("en-gb");
+        if (aIsGB && !bIsGB) return -1;
+        if (!aIsGB && bIsGB) return 1;
+
+        return a.name.localeCompare(b.name);
+      });
+      
+      englishVoices.forEach(voice => {
+        const option = document.createElement("option");
+        
+        let accentLabel = "US Accent";
+        const langLower = voice.lang.toLowerCase();
+        if (langLower.includes("in")) {
+          accentLabel = "🇮🇳 Indian Accent";
+        } else if (langLower.includes("gb")) {
+          accentLabel = "🇬🇧 British Accent";
+        } else if (langLower.includes("us")) {
+          accentLabel = "🇺🇸 US Accent";
+        } else if (langLower.includes("au")) {
+          accentLabel = "🇦🇺 Australian Accent";
+        } else if (langLower.includes("ca")) {
+          accentLabel = "🇨🇦 Canadian Accent";
+        } else {
+          accentLabel = `Accent: ${voice.lang}`;
+        }
+        
+        option.textContent = `${voice.name} (${accentLabel})`;
+        option.value = voice.name;
+        
+        if (state.selectedVoiceName === voice.name) {
+          option.selected = true;
+        }
+        
+        el.selectSpeechVoice.appendChild(option);
+      });
+
+      // Set default selected voice if not set
+      if (!state.selectedVoiceName && englishVoices.length > 0) {
+        const defaultIndian = englishVoices.find(v => v.lang.toLowerCase().includes("in"));
+        if (defaultIndian) {
+          state.selectedVoiceName = defaultIndian.name;
+          el.selectSpeechVoice.value = defaultIndian.name;
+          localStorage.setItem("ph_selected_voice", defaultIndian.name);
+        } else {
+          state.selectedVoiceName = el.selectSpeechVoice.value;
+          localStorage.setItem("ph_selected_voice", el.selectSpeechVoice.value);
+        }
+      }
+    }
+  }
+
   function speakWord(word) {
     if (!window.speechSynthesis) {
       showToast("Speech synthesis not supported in this browser.");
@@ -1111,21 +1200,28 @@ document.addEventListener("DOMContentLoaded", () => {
     window.speechSynthesis.cancel();
 
     const utterance = new SpeechSynthesisUtterance(word);
-    utterance.lang = "en-IN";
     utterance.rate = state.speechSpeed;
 
-    // Get English Voice, prioritizing Indian English accent
+    // Get selected voice
     const voices = window.speechSynthesis.getVoices();
-    const indianVoice = voices.find(v => v.lang === "en-IN" || v.lang === "en_IN") ||
-                        voices.find(v => v.lang.startsWith("en-IN")) ||
-                        voices.find(v => v.lang.startsWith("en-GB") || v.lang === "en_GB") ||
-                        voices.find(v => v.lang.startsWith("en-US") || v.lang === "en_US") ||
-                        voices.find(v => v.lang.startsWith("en")) || 
-                        voices[0];
+    let selectedVoice = null;
     
-    if (indianVoice) {
-      utterance.voice = indianVoice;
-      utterance.lang = indianVoice.lang;
+    if (state.selectedVoiceName) {
+      selectedVoice = voices.find(v => v.name === state.selectedVoiceName);
+    }
+    
+    // Fallback: search for first en-IN voice if no preference is set or preferred voice is missing
+    if (!selectedVoice) {
+      selectedVoice = voices.find(v => v.lang.toLowerCase().includes("in")) ||
+                      voices.find(v => v.lang.toLowerCase().includes("gb")) ||
+                      voices.find(v => v.lang.toLowerCase().includes("us")) ||
+                      voices.find(v => v.lang.startsWith("en")) || 
+                      voices[0];
+    }
+    
+    if (selectedVoice) {
+      utterance.voice = selectedVoice;
+      utterance.lang = selectedVoice.lang;
     }
 
     // Small delay to allow the engine to cancel the previous utterance cleanly
@@ -1138,10 +1234,11 @@ document.addEventListener("DOMContentLoaded", () => {
   if (window.speechSynthesis) {
     if (window.speechSynthesis.onvoiceschanged !== undefined) {
       window.speechSynthesis.onvoiceschanged = () => {
-        // Pre-fetch voices to load caches
-        window.speechSynthesis.getVoices();
+        populateVoiceList();
       };
     }
+    // Populate immediately in case they are already loaded
+    populateVoiceList();
   }
 
   // --- BOTTOM DRAWER CONTROLS ---
