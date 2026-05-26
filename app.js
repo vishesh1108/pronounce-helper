@@ -579,26 +579,29 @@ document.addEventListener("DOMContentLoaded", () => {
     switchScreen("scan");
     showOCRLoading(true);
     
-    // 1. Process image on canvas
-    const processedDataUrl = applyImageAdjustments(imageEl, state.rotation, state.filters);
-    state.processedImageSrc = processedDataUrl;
+    // 1. Process image on canvas for visual display (forOCR = false)
+    const visualDataUrl = applyImageAdjustments(imageEl, state.rotation, state.filters, false);
+    state.processedImageSrc = visualDataUrl;
+    
+    // 2. Process image on canvas for Tesseract OCR in the background (forOCR = true)
+    const ocrDataUrl = applyImageAdjustments(imageEl, state.rotation, state.filters, true);
     
     // Clear old overlays
     el.wordOverlayContainer.innerHTML = "";
     
-    // Wait for the img to load in DOM before triggering OCR and calculating sizes
+    // Wait for the visual img to load in DOM before triggering OCR and calculating sizes
     el.sourceImage.onload = function() {
-      // 3. Trigger Tesseract OCR
-      executeOCR(processedDataUrl);
+      // 3. Trigger Tesseract OCR with the optimized binarized OCR image data
+      executeOCR(ocrDataUrl);
       // Remove onload handler to avoid infinite loops
       el.sourceImage.onload = null;
     };
 
-    // 2. Set src of sourceImage
-    el.sourceImage.src = processedDataUrl;
+    // Set src of sourceImage to the beautiful visual version
+    el.sourceImage.src = visualDataUrl;
   }
 
-  function applyImageAdjustments(imageEl, rotationAngle, filters) {
+  function applyImageAdjustments(imageEl, rotationAngle, filters, forOCR = false) {
     const canvas = document.createElement("canvas");
     const ctx = canvas.getContext("2d");
 
@@ -636,8 +639,8 @@ document.addEventListener("DOMContentLoaded", () => {
         let g = data[i + 1];
         let b = data[i + 2];
 
-        // Convert to grayscale if requested OR if adaptive binarization is enabled (required for integral image)
-        if (filters.grayscale || filters.adaptiveThreshold) {
+        // Convert to grayscale if requested OR if processing for OCR (required for integral image)
+        if (filters.grayscale || (forOCR && filters.adaptiveThreshold)) {
           const v = 0.2126 * r + 0.7152 * g + 0.0722 * b;
           r = g = b = v;
         }
@@ -658,11 +661,13 @@ document.addEventListener("DOMContentLoaded", () => {
         data[i + 2] = Math.min(255, Math.max(0, b));
       }
 
-      // 2. Custom 3x3 Convolution Sharpening (Crucial for OCR readability and 100% cross-browser compatible)
-      sharpenImageDirect(imgData);
+      // 2. Custom 3x3 Convolution Sharpening (Applied only for OCR to keep visual display smooth and natural)
+      if (forOCR) {
+        sharpenImageDirect(imgData);
+      }
 
-      // 3. Local Adaptive Thresholding/Binarization (removes shadows/gradients)
-      if (filters.adaptiveThreshold) {
+      // 3. Local Adaptive Thresholding/Binarization (Applied only in the background for OCR, never shown visually!)
+      if (forOCR && filters.adaptiveThreshold) {
         applyBradleyThreshold(imgData, 15, 8);
       }
 
