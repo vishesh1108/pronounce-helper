@@ -74,9 +74,10 @@ Return ONLY a valid JSON array of strings containing the 5 sentences. Do not inc
 Example output format:
 ["Sentence 1 with word", "Sentence 2 with word", "Sentence 3 with word", "Sentence 4 with word", "Sentence 5 with word"]`;
 
+  const errors = [];
+
   try {
     let sentences = null;
-    let rawResponse = null;
 
     // Support client-passed API keys from request headers as overrides
     const clientGroqKey = req.headers['x-groq-api-key'];
@@ -100,48 +101,58 @@ Example output format:
         });
 
         const responseText = completion.choices[0]?.message?.content || '';
-        rawResponse = `Groq (llama-3.1-8b-instant): ${responseText}`;
         sentences = parseJsonArray(responseText);
+        if (!sentences || sentences.length < 5) {
+          throw new Error('Failed to parse 5 sentences from Groq response.');
+        }
       } catch (groqError) {
         console.warn('Groq API call failed:', groqError.message);
-        rawResponse = `Groq API Error: ${groqError.message}`;
+        errors.push(`Groq Failed: ${groqError.message}`);
       }
-    } 
-    // 2. Try Gemini if configured (and Groq was not used or failed)
-    if (!sentences && geminiApiKey) {
-      console.log('Using Gemini API...');
-      const { GoogleGenAI } = require('@google/genai');
-      const ai = new GoogleGenAI({ apiKey: geminiApiKey });
-
-      const result = await ai.models.generateContent({
-        model: 'gemini-2.0-flash',
-        contents: prompt,
-        config: {
-          responseMimeType: 'application/json',
-          responseSchema: {
-            type: 'array',
-            items: {
-              type: 'string'
-            }
-          },
-          temperature: 0.5,
-          maxOutputTokens: 300,
-        },
-      });
-
-      const responseText = result.text;
-      rawResponse = `Gemini (gemini-2.0-flash): ${responseText}`;
-      console.log('Gemini raw response:', responseText);
-      sentences = parseJsonArray(responseText);
-    } 
-    // 3. Neither key is configured or both failed
-    else if (!sentences) {
-      console.error('No API keys configured on backend.');
-      return res.status(500).json({ error: 'Server API keys not configured. Please supply a GEMINI_API_KEY or GROQ_API_KEY in the app URL or server environment.' });
+    } else {
+      errors.push('Groq skipped: No GROQ_API_KEY configured');
     }
 
-    if (!sentences || sentences.length < 5) {
-      throw new Error(`Failed to parse a valid list of 5 sentences from AI response. Raw Response: ${JSON.stringify(rawResponse)}`);
+    // 2. Try Gemini if configured (and Groq was not used or failed)
+    if (!sentences && geminiApiKey) {
+      try {
+        console.log('Using Gemini API...');
+        const { GoogleGenAI } = require('@google/genai');
+        const ai = new GoogleGenAI({ apiKey: geminiApiKey });
+
+        const result = await ai.models.generateContent({
+          model: 'gemini-2.0-flash',
+          contents: prompt,
+          config: {
+            responseMimeType: 'application/json',
+            responseSchema: {
+              type: 'array',
+              items: {
+                type: 'string'
+              }
+            },
+            temperature: 0.5,
+            maxOutputTokens: 300,
+          },
+        });
+
+        const responseText = result.text;
+        console.log('Gemini raw response:', responseText);
+        sentences = parseJsonArray(responseText);
+        if (!sentences || sentences.length < 5) {
+          throw new Error('Failed to parse 5 sentences from Gemini response.');
+        }
+      } catch (geminiError) {
+        console.warn('Gemini API call failed:', geminiError.message);
+        errors.push(`Gemini Failed: ${geminiError.message}`);
+      }
+    } else if (!sentences) {
+      errors.push('Gemini skipped: No GEMINI_API_KEY configured');
+    }
+
+    // 3. Neither key is configured or both failed
+    if (!sentences) {
+      throw new Error(`All configured AI providers failed. Details: [${errors.join(' | ')}]`);
     }
 
     console.log('Successfully generated sentences!');
