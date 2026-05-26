@@ -1292,12 +1292,6 @@ document.addEventListener("DOMContentLoaded", () => {
   async function getPracticeSentences(word) {
     const lowerWord = word.toLowerCase();
 
-    // Check if we have pre-baked overrides for this word (handles offline demo seamlessly)
-    const prebaked = generateLocalSentences(word);
-    if (prebaked) {
-      return prebaked;
-    }
-
     // Return from cache if we already have AI-generated sentences for this word
     const cached = state.practiceSentences[lowerWord];
     if (cached && cached.length === 5) {
@@ -1343,45 +1337,6 @@ document.addEventListener("DOMContentLoaded", () => {
       console.warn(`Backend generation failed or timed out for "${word}".`, err.message);
     }
 
-    return null;
-  }
-
-  function generateLocalSentences(word) {
-    const lower = word.toLowerCase();
-    
-    // High-quality pre-baked overrides for common demo words (extremely simple)
-    const overrides = {
-      technology: [
-        "We use technology at school.",
-        "He likes this new technology.",
-        "Is technology good or bad?",
-        "She studies technology today.",
-        "This is a simple technology."
-      ],
-      student: [
-        "The student reads a book.",
-        "He is a good student.",
-        "I see a student there.",
-        "The student writes on paper.",
-        "We help the student learn."
-      ],
-      unbelievable: [
-        "The view is unbelievable.",
-        "She has an unbelievable dog.",
-        "That story is unbelievable.",
-        "He did an unbelievable job.",
-        "It was an unbelievable day."
-      ],
-      pronunciation: [
-        "I practice my pronunciation.",
-        "His pronunciation is very clear.",
-        "We hear the pronunciation.",
-        "This is a hard pronunciation.",
-        "She helps me with pronunciation."
-      ]
-    };
-
-    if (overrides[lower]) return overrides[lower];
     return null;
   }
 
@@ -1490,9 +1445,9 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!sentences || sentences.length === 0) {
       panelEl.innerHTML = `
         <div class="sentence-error-state" style="padding: 24px; text-align: center; color: var(--color-text-muted);">
-          <span style="font-size: 2.2rem; display: block; margin-bottom: 8px;">⏳🍳</span>
+          <span style="font-size: 2.2rem; display: block; margin-bottom: 8px;">⏳🍲🍳</span>
           <p style="font-size: 0.95rem; margin: 0; line-height: 1.5; font-weight: 500; color: var(--color-text);">
-            Birbal ki khichdi abhi pak rahi h, thoda samay lagega. Sorry! 🙏
+            Birbal is khichdi abhi pak rahi h, thoda samay lagega. Shukriya or Sorry! 🙏
           </p>
         </div>
       `;
