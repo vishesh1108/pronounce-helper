@@ -67,9 +67,12 @@ app.get('/api/sentences', async (req, res) => {
 
   // Prompt configuration
   const prompt = `Generate exactly 5 distinct, practical, and natural English sentences using the word "${cleanWord}".
-Each sentence must integrate the word naturally in a different scenario (casual conversation, business/work, academic/study, shopping/travel, technology).
-Ensure all other words in the sentences (except the word "${cleanWord}") are extremely simple, beginner-friendly, and very easy to spell and pronounce so the student can focus entirely on "${cleanWord}".
-Vary the position of the target word "${cleanWord}" across the 5 sentences (e.g., place it at the beginning of some sentences, in the middle of others, or at the end). Do not always place it at the end of the sentences so it does not look monotonous.
+The goal is to help a beginner student practice pronouncing the word "${cleanWord}". 
+CRITICAL REQUIREMENT: Every single word in the sentences other than the target word "${cleanWord}" MUST be extremely simple, beginner-friendly (A1/A2 elementary level), and very easy to read and pronounce.
+- Use only common, short, primary-school level words (e.g., "I", "we", "go", "like", "see", "my", "the", "is", "have", "good", "school", "book", "friend", "home", "play", "run", "dog", "cat", "car").
+- Avoid any other complex, multi-syllable, academic, or technical words. For example, do not use words like "presentation", "hypothesis", "technology", "development", "university", "scenario", "device".
+- Vary the position of the target word "${cleanWord}" across the 5 sentences (e.g., place it at the beginning, in the middle, or at the end).
+- Keep each sentence short (ideally under 6-10 words).
 Return ONLY a valid JSON array of strings containing the 5 sentences. Do not include markdown code blocks, do not write "here is the json", and do not include extra explanations.
 Example output format:
 ["Sentence 1 with word", "Sentence 2 with word", "Sentence 3 with word", "Sentence 4 with word", "Sentence 5 with word"]`;
