@@ -145,13 +145,29 @@ Example output format:
 
   } catch (error) {
     console.error('Sentence generation error:', error.message);
-    res.status(500).json({ error: 'Failed to generate sentences', details: error.message });
+    res.status(500).json({ 
+      error: `Failed to generate sentences: ${error.message}`, 
+      details: error.message 
+    });
   }
 });
 
 // Health check endpoint
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', time: new Date() });
+});
+
+// Root endpoint to prevent "Cannot GET /" errors on Vercel deployment
+app.get('/', (req, res) => {
+  res.json({
+    status: 'online',
+    message: 'Pronounce Helper Backend API is running successfully.',
+    frontendUrl: 'https://vishesh1108.github.io/pronounce-helper/',
+    endpoints: {
+      healthCheck: '/health',
+      sentenceGeneration: '/api/sentences?word=welcome'
+    }
+  });
 });
 
 // Robust JSON array parsing helper

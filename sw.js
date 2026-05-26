@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pronounce-helper-v6';
+const CACHE_NAME = 'pronounce-helper-v7';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -15,12 +15,17 @@ const ASSETS_TO_CACHE = [
   'https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap'
 ];
 
-// Install: Cache core assets
+// Install: Cache core assets robustly
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
       console.log('[Service Worker] Pre-caching offline assets');
-      return cache.addAll(ASSETS_TO_CACHE);
+      // Using allSettled so if any single file fails or CDN is slow, it doesn't break PWA setup
+      return Promise.allSettled(
+        ASSETS_TO_CACHE.map(asset => 
+          cache.add(asset).catch(err => console.error(`[Service Worker] Failed to cache: ${asset}`, err))
+        )
+      );
     }).then(() => self.skipWaiting())
   );
 });
@@ -65,6 +70,11 @@ self.addEventListener('fetch', (event) => {
 
   const url = new URL(event.request.url);
 
+  // CRITICAL: NEVER intercept any API calls or health checks
+  if (url.pathname.includes('/api/') || url.pathname.includes('/health')) {
+    return; // Bypass service worker completely
+  }
+
   // Check if this is a request to our app's own origin
   const isLocalRequest = url.origin === self.location.origin;
 
@@ -76,8 +86,7 @@ self.addEventListener('fetch', (event) => {
                 url.hostname.includes('unpkg.com');
 
   // ONLY intercept if it's a local request or a recognized CDN
-  // Do NOT intercept external APIs, Vercel backend, or custom API endpoints
-  if ((!isLocalRequest && !isCDN) || url.pathname.includes('/api/')) {
+  if (!isLocalRequest && !isCDN) {
     return; // Bypass service worker completely
   }
 
