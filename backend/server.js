@@ -100,7 +100,7 @@ Example output format:
         });
 
         const responseText = completion.choices[0]?.message?.content || '';
-        rawResponse = responseText;
+        rawResponse = `Groq (llama-3.1-8b-instant): ${responseText}`;
         sentences = parseJsonArray(responseText);
       } catch (groqError) {
         console.warn('Groq API call failed:', groqError.message);
@@ -114,7 +114,7 @@ Example output format:
       const ai = new GoogleGenAI({ apiKey: geminiApiKey });
 
       const result = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
+        model: 'gemini-2.0-flash',
         contents: prompt,
         config: {
           responseMimeType: 'application/json',
@@ -130,7 +130,7 @@ Example output format:
       });
 
       const responseText = result.text;
-      rawResponse = responseText;
+      rawResponse = `Gemini (gemini-2.0-flash): ${responseText}`;
       console.log('Gemini raw response:', responseText);
       sentences = parseJsonArray(responseText);
     } 
