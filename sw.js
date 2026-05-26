@@ -1,9 +1,10 @@
-const CACHE_NAME = 'pronounce-helper-v8';
+const CACHE_NAME = 'pronounce-helper-v9';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
   './styles.css',
   './app.js',
+  './scanner_warper.js',
   './syllables.js',
   './manifest.json',
   './icon.svg',

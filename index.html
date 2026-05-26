@@ -198,8 +198,27 @@
                 <input type="range" id="slider-brightness" min="50" max="150" value="100">
                 <span id="val-brightness">100%</span>
               </div>
+              <div class="slider-group">
+                <label for="select-layout-mode">Layout Mode</label>
+                <select id="select-layout-mode" class="adjust-select">
+                  <option value="3">Auto Detect Layout</option>
+                  <option value="6">Uniform Text Block</option>
+                  <option value="11">Scattered Words</option>
+                </select>
+                <span></span>
+              </div>
+              <div class="slider-group">
+                <label for="slider-sensitivity">Sensitivity</label>
+                <input type="range" id="slider-sensitivity" min="5" max="70" value="15">
+                <span id="val-sensitivity">15%</span>
+              </div>
               <div class="filter-toggles">
                 <label class="toggle-container">
+                  <input type="checkbox" id="chk-adaptive-threshold" checked>
+                  <span class="checkmark"></span>
+                  Clean Shadows (Adaptive Binarize)
+                </label>
+                <label class="toggle-container" style="margin-top: 10px;">
                   <input type="checkbox" id="chk-grayscale">
                   <span class="checkmark"></span>
                   Black & White Filter
@@ -375,6 +394,7 @@
 
   <!-- Scripts -->
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+  <script src="scanner_warper.js"></script>
   <script src="syllables.js"></script>
   <script src="app.js"></script>
 </body>

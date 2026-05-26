@@ -7,8 +7,22 @@
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('./sw.js')
-      .then((reg) => console.log('[Service Worker] Registered successfully:', reg.scope))
+      .then((reg) => {
+        console.log('[Service Worker] Registered successfully:', reg.scope);
+        // Force checking for updates on every page load
+        reg.update();
+      })
       .catch((err) => console.error('[Service Worker] Registration failed:', err));
+  });
+
+  // Automatically reload when a new Service Worker takes control
+  let refreshing = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!refreshing) {
+      refreshing = true;
+      console.log('[Service Worker] Controller changed. Reloading page...');
+      window.location.reload();
+    }
   });
 }
 
@@ -50,7 +64,10 @@ document.addEventListener("DOMContentLoaded", () => {
     filters: {
       contrast: 100,            // 50 to 200
       brightness: 100,          // 50 to 150
-      grayscale: false
+      grayscale: false,
+      adaptiveThreshold: true,  // Clean Shadows / local binarization
+      pagesegMode: "3",         // Tesseract PSM mode (default AUTO)
+      scanSensitivity: 15       // Tesseract confidence threshold (default 15%)
     },
     ocrWords: [],               // Words extracted from OCR
     selectedWord: null,         // Currently selected word string
@@ -125,9 +142,13 @@ document.addEventListener("DOMContentLoaded", () => {
     sliderContrast: document.getElementById("slider-contrast"),
     sliderBrightness: document.getElementById("slider-brightness"),
     chkGrayscale: document.getElementById("chk-grayscale"),
+    selectLayoutMode: document.getElementById("select-layout-mode"),
+    sliderSensitivity: document.getElementById("slider-sensitivity"),
+    chkAdaptiveThreshold: document.getElementById("chk-adaptive-threshold"),
     valRotation: document.getElementById("val-rotation"),
     valContrast: document.getElementById("val-contrast"),
     valBrightness: document.getElementById("val-brightness"),
+    valSensitivity: document.getElementById("val-sensitivity"),
     btnRotateLeft: document.getElementById("btn-rotate-left"),
     btnRotateRight: document.getElementById("btn-rotate-right"),
     
@@ -262,6 +283,10 @@ document.addEventListener("DOMContentLoaded", () => {
         el.sliderBrightness.value = state.filters.brightness;
         el.valBrightness.innerText = `${state.filters.brightness}%`;
         el.chkGrayscale.checked = state.filters.grayscale;
+        el.chkAdaptiveThreshold.checked = state.filters.adaptiveThreshold;
+        el.selectLayoutMode.value = state.filters.pagesegMode;
+        el.sliderSensitivity.value = state.filters.scanSensitivity;
+        el.valSensitivity.innerText = `${state.filters.scanSensitivity}%`;
         el.sliderRotation.value = state.rotation;
         el.valRotation.innerText = `${state.rotation}°`;
         
@@ -287,12 +312,25 @@ document.addEventListener("DOMContentLoaded", () => {
     el.chkGrayscale.addEventListener("change", () => {
       updatePreviewOnly();
     });
+    el.chkAdaptiveThreshold.addEventListener("change", () => {
+      updatePreviewOnly();
+    });
+    el.selectLayoutMode.addEventListener("change", () => {
+      // Layout mode doesn't visual change the image preview itself, but we reset overlays
+      el.wordOverlayContainer.innerHTML = "";
+    });
+    el.sliderSensitivity.addEventListener("input", (e) => {
+      el.valSensitivity.innerText = `${e.target.value}%`;
+    });
     
     el.btnApplyFilters.addEventListener("click", () => {
       state.rotation = parseInt(el.sliderRotation.value);
       state.filters.contrast = parseInt(el.sliderContrast.value);
       state.filters.brightness = parseInt(el.sliderBrightness.value);
       state.filters.grayscale = el.chkGrayscale.checked;
+      state.filters.adaptiveThreshold = el.chkAdaptiveThreshold.checked;
+      state.filters.pagesegMode = el.selectLayoutMode.value;
+      state.filters.scanSensitivity = parseInt(el.sliderSensitivity.value);
       el.imageAdjustmentsPanel.classList.add("hidden");
       reprocessAndOCR();
     });
@@ -346,7 +384,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // --- IMAGE RESIZER UTILITY ---
-  function resizeImage(imgElement, maxDim) {
+  function resizeImage(imgElement, targetMaxDim) {
     return new Promise((resolve) => {
       const canvas = document.createElement("canvas");
       const ctx = canvas.getContext("2d");
@@ -354,23 +392,46 @@ document.addEventListener("DOMContentLoaded", () => {
       let width = imgElement.naturalWidth || imgElement.width;
       let height = imgElement.naturalHeight || imgElement.height;
       
-      if (width <= maxDim && height <= maxDim) {
+      let needsResize = false;
+      let targetWidth = width;
+      let targetHeight = height;
+      
+      if (width > targetMaxDim || height > targetMaxDim) {
+        // Scale down large images to prevent memory/performance issues
+        needsResize = true;
+        if (width > height) {
+          targetHeight = Math.round((height * targetMaxDim) / width);
+          targetWidth = targetMaxDim;
+        } else {
+          targetWidth = Math.round((width * targetMaxDim) / height);
+          targetHeight = targetMaxDim;
+        }
+      } else if (targetMaxDim >= 1500 && Math.max(width, height) < 1500) {
+        // Scale up low-resolution images for OCR to optimize Tesseract character detection
+        needsResize = true;
+        const scaleUpDim = 1600; // Optimal OCR max dimension
+        if (width > height) {
+          targetHeight = Math.round((height * scaleUpDim) / width);
+          targetWidth = scaleUpDim;
+        } else {
+          targetWidth = Math.round((width * scaleUpDim) / height);
+          targetHeight = scaleUpDim;
+        }
+      }
+      
+      if (!needsResize) {
         resolve(imgElement);
         return;
       }
       
-      if (width > height) {
-        height = Math.round((height * maxDim) / width);
-        width = maxDim;
-      } else {
-        width = Math.round((width * maxDim) / height);
-        height = maxDim;
-      }
+      canvas.width = targetWidth;
+      canvas.height = targetHeight;
       
-      canvas.width = width;
-      canvas.height = height;
+      // Enable high-quality image smoothing for clean edges
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = "high";
       
-      ctx.drawImage(imgElement, 0, 0, width, height);
+      ctx.drawImage(imgElement, 0, 0, targetWidth, targetHeight);
       
       const resizedImg = new Image();
       resizedImg.onload = () => resolve(resizedImg);
@@ -389,18 +450,25 @@ document.addEventListener("DOMContentLoaded", () => {
     const reader = new FileReader();
     reader.onload = function(event) {
       const img = new Image();
-      img.onload = async function() {
-        state.originalImage = img;
-        
-        switchScreen("scan");
-        showOCRLoading(true);
-        updateOCRProgress("Optimizing image size...", 0.05);
+      img.onload = function() {
+        // Trigger automated page boundary scanner
+        window.ScannerWarper.initScannerUI(img, async (flatCanvas) => {
+          const flatImg = new Image();
+          flatImg.onload = async function() {
+            state.originalImage = flatImg;
+            
+            switchScreen("scan");
+            showOCRLoading(true);
+            updateOCRProgress("Optimizing image size...", 0.05);
 
-        // Generate resized images for OCR and live previews (upgraded to 2000px for high-accuracy text rendering)
-        state.ocrSourceImage = await resizeImage(img, 2000);
-        state.previewSourceImage = await resizeImage(img, 600);
+            // Generate resized images for OCR and live previews (upgraded to 2000px for high-accuracy text rendering)
+            state.ocrSourceImage = await resizeImage(flatImg, 2000);
+            state.previewSourceImage = await resizeImage(flatImg, 600);
 
-        runOCRProcessing(state.ocrSourceImage);
+            runOCRProcessing(state.ocrSourceImage);
+          };
+          flatImg.src = flatCanvas.toDataURL();
+        });
       };
       img.src = event.target.result;
     };
@@ -408,12 +476,23 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function resetFiltersUI() {
-    state.filters = { contrast: 100, brightness: 100, grayscale: false };
+    state.filters = {
+      contrast: 100,
+      brightness: 100,
+      grayscale: false,
+      adaptiveThreshold: true,
+      pagesegMode: "3",
+      scanSensitivity: 15
+    };
     el.sliderContrast.value = 100;
     el.valContrast.innerText = "100%";
     el.sliderBrightness.value = 100;
     el.valBrightness.innerText = "100%";
     el.chkGrayscale.checked = false;
+    el.chkAdaptiveThreshold.checked = true;
+    el.selectLayoutMode.value = "3";
+    el.sliderSensitivity.value = 15;
+    el.valSensitivity.innerText = "15%";
     el.sliderRotation.value = 0;
     el.valRotation.innerText = "0°";
   }
@@ -436,7 +515,10 @@ document.addEventListener("DOMContentLoaded", () => {
     const tempFilters = {
       contrast: parseInt(el.sliderContrast.value),
       brightness: parseInt(el.sliderBrightness.value),
-      grayscale: el.chkGrayscale.checked
+      grayscale: el.chkGrayscale.checked,
+      adaptiveThreshold: el.chkAdaptiveThreshold.checked,
+      pagesegMode: el.selectLayoutMode.value,
+      scanSensitivity: parseInt(el.sliderSensitivity.value)
     };
     // Use previewSourceImage for fast 60fps adjustments
     const previewDataUrl = applyImageAdjustments(state.previewSourceImage, tempRotation, tempFilters);
@@ -499,55 +581,146 @@ document.addEventListener("DOMContentLoaded", () => {
     ctx.translate(width / 2, height / 2);
     ctx.rotate(angleRad);
 
-    // Apply hardware-accelerated canvas filter if supported (GPU-bound)
-    if (typeof ctx.filter === "string") {
-      ctx.filter = `contrast(${filters.contrast}%) brightness(${filters.brightness}%) ${filters.grayscale ? 'grayscale(100%)' : 'grayscale(0%)'} url(#svg-sharpen)`;
-      ctx.drawImage(imageEl, -originalWidth / 2, -originalHeight / 2);
-      ctx.filter = "none";
-    } else {
-      // Fallback: draw image, then do pixel processing (CPU-bound)
-      ctx.drawImage(imageEl, -originalWidth / 2, -originalHeight / 2);
-      try {
-        const imgData = ctx.getImageData(0, 0, width, height);
-        const data = imgData.data;
+    // Draw image without CSS filters so we can process it manually and consistently
+    ctx.drawImage(imageEl, -originalWidth / 2, -originalHeight / 2);
 
-        const contrastFactor = (filters.contrast + 100) / 200; // range mapping
-        const brightnessFactor = filters.brightness / 100;
+    try {
+      const imgData = ctx.getImageData(0, 0, width, height);
+      const data = imgData.data;
 
-        for (let i = 0; i < data.length; i += 4) {
-          let r = data[i];
-          let g = data[i + 1];
-          let b = data[i + 2];
+      const contrastFactor = (filters.contrast + 100) / 200; // range mapping
+      const brightnessFactor = filters.brightness / 100;
 
-          // Grayscale
-          if (filters.grayscale) {
-            const v = 0.2126 * r + 0.7152 * g + 0.0722 * b;
-            r = g = b = v;
-          }
+      // 1. Contrast, Brightness and Grayscale
+      for (let i = 0; i < data.length; i += 4) {
+        let r = data[i];
+        let g = data[i + 1];
+        let b = data[i + 2];
 
-          // Brightness
-          r *= brightnessFactor;
-          g *= brightnessFactor;
-          b *= brightnessFactor;
-
-          // Contrast
-          r = ((r - 128) * contrastFactor) + 128;
-          g = ((g - 128) * contrastFactor) + 128;
-          b = ((b - 128) * contrastFactor) + 128;
-
-          // Clamp
-          data[i] = Math.min(255, Math.max(0, r));
-          data[i + 1] = Math.min(255, Math.max(0, g));
-          data[i + 2] = Math.min(255, Math.max(0, b));
+        // Convert to grayscale if requested OR if adaptive binarization is enabled (required for integral image)
+        if (filters.grayscale || filters.adaptiveThreshold) {
+          const v = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+          r = g = b = v;
         }
 
-        ctx.putImageData(imgData, 0, 0);
-      } catch (err) {
-        console.error("Failed to apply pixel filters on canvas", err);
+        // Brightness
+        r *= brightnessFactor;
+        g *= brightnessFactor;
+        b *= brightnessFactor;
+
+        // Contrast
+        r = ((r - 128) * contrastFactor) + 128;
+        g = ((g - 128) * contrastFactor) + 128;
+        b = ((b - 128) * contrastFactor) + 128;
+
+        // Clamp
+        data[i] = Math.min(255, Math.max(0, r));
+        data[i + 1] = Math.min(255, Math.max(0, g));
+        data[i + 2] = Math.min(255, Math.max(0, b));
       }
+
+      // 2. Custom 3x3 Convolution Sharpening (Crucial for OCR readability and 100% cross-browser compatible)
+      sharpenImageDirect(imgData);
+
+      // 3. Local Adaptive Thresholding/Binarization (removes shadows/gradients)
+      if (filters.adaptiveThreshold) {
+        applyBradleyThreshold(imgData, 15, 8);
+      }
+
+      ctx.putImageData(imgData, 0, 0);
+    } catch (err) {
+      console.error("Failed to apply manual pixel filters on canvas", err);
     }
 
     return canvas.toDataURL("image/jpeg", 0.85);
+  }
+
+  function sharpenImageDirect(imgData) {
+    const width = imgData.width;
+    const height = imgData.height;
+    const src = imgData.data;
+    
+    // Copy src buffer to read from
+    const srcCopy = new Uint8ClampedArray(src);
+    
+    for (let y = 1; y < height - 1; y++) {
+      const rowOffset = y * width;
+      for (let x = 1; x < width - 1; x++) {
+        const idx = (rowOffset + x) * 4;
+        const idxTop = idx - width * 4;
+        const idxBottom = idx + width * 4;
+        
+        // Kernel matrix:
+        //  0  -1   0
+        // -1   5  -1
+        //  0  -1   0
+        let rSum = srcCopy[idx] * 5 - srcCopy[idxTop] - srcCopy[idx - 4] - srcCopy[idx + 4] - srcCopy[idxBottom];
+        let gSum = srcCopy[idx + 1] * 5 - srcCopy[idxTop + 1] - srcCopy[idx - 3] - srcCopy[idx + 5] - srcCopy[idxBottom + 1];
+        let bSum = srcCopy[idx + 2] * 5 - srcCopy[idxTop + 2] - srcCopy[idx - 2] - srcCopy[idx + 6] - srcCopy[idxBottom + 2];
+        
+        src[idx]     = Math.min(255, Math.max(0, rSum));
+        src[idx + 1] = Math.min(255, Math.max(0, gSum));
+        src[idx + 2] = Math.min(255, Math.max(0, bSum));
+      }
+    }
+  }
+
+  function applyBradleyThreshold(imgData, thresholdPercent = 15, windowFraction = 8) {
+    const width = imgData.width;
+    const height = imgData.height;
+    const data = imgData.data;
+
+    // Build integral image
+    const grayscale = new Uint8Array(width * height);
+    const integralImage = new Int32Array(width * height);
+
+    for (let y = 0; y < height; y++) {
+      let sum = 0;
+      const rowOffset = y * width;
+      for (let x = 0; x < width; x++) {
+        const idx = (rowOffset + x) * 4;
+        const val = data[idx]; // data is grayscale at this point
+        grayscale[rowOffset + x] = val;
+
+        sum += val;
+        if (y === 0) {
+          integralImage[rowOffset + x] = sum;
+        } else {
+          integralImage[rowOffset + x] = integralImage[(y - 1) * width + x] + sum;
+        }
+      }
+    }
+
+    // Apply threshold
+    const S = Math.floor(width / windowFraction);
+    const s2 = Math.floor(S / 2);
+    const t = (100 - thresholdPercent) / 100;
+
+    for (let y = 0; y < height; y++) {
+      const rowOffset = y * width;
+      for (let x = 0; x < width; x++) {
+        const idx = (rowOffset + x) * 4;
+
+        const x1 = Math.max(0, x - s2);
+        const x2 = Math.min(width - 1, x + s2);
+        const y1 = Math.max(0, y - s2);
+        const y2 = Math.min(height - 1, y + s2);
+
+        const count = (x2 - x1 + 1) * (y2 - y1 + 1);
+
+        let sum = integralImage[y2 * width + x2];
+        if (x1 > 0) sum -= integralImage[y2 * width + (x1 - 1)];
+        if (y1 > 0) sum -= integralImage[(y1 - 1) * width + x2];
+        if (x1 > 0 && y1 > 0) sum += integralImage[(y1 - 1) * width + (x1 - 1)];
+
+        const currentPixel = grayscale[rowOffset + x];
+        if (currentPixel * count < sum * t) {
+          data[idx] = data[idx + 1] = data[idx + 2] = 0; // Black
+        } else {
+          data[idx] = data[idx + 1] = data[idx + 2] = 255; // White
+        }
+      }
+    }
   }
 
   // --- DEMO PAGE CREATION ---
@@ -641,11 +814,11 @@ document.addEventListener("DOMContentLoaded", () => {
         }
       });
       
-      // Set OCR optimization parameters to improve accuracy
+      // Set OCR optimization parameters to improve accuracy (remove dictionary penalties to allow custom words/names)
       await tesseractWorker.setParameters({
         tessedit_enable_bigram_correction: '1',
-        language_model_penalty_non_dict_word: '0.3',
-        language_model_penalty_non_freq_dict_word: '0.2',
+        language_model_penalty_non_dict_word: '0',
+        language_model_penalty_non_freq_dict_word: '0',
         tessedit_char_blacklist: '`|~[]{}'
       });
       
@@ -662,14 +835,23 @@ document.addEventListener("DOMContentLoaded", () => {
         await initWorker();
       }
       
+      // Apply current settings before scan (Layout Mode & Sensitivity/Confidence cutoff)
+      await tesseractWorker.setParameters({
+        tessedit_pageseg_mode: state.filters.pagesegMode,
+        tessedit_enable_bigram_correction: '1',
+        language_model_penalty_non_dict_word: '0',
+        language_model_penalty_non_freq_dict_word: '0',
+        tessedit_char_blacklist: '`|~[]{}'
+      });
+      
       updateOCRProgress("Analyzing structure...", 0.9);
       // Reuse the pre-warmed background worker instead of spinning one up on-demand!
       const result = await tesseractWorker.recognize(imageSrc);
       
       state.ocrWords = result.data.words.filter(w => {
-        // Filter out punctuation-only strings and words with confidence < 20%
+        // Filter out punctuation-only strings and words with confidence < scanSensitivity (slider-based)
         const hasLetter = /[a-zA-Z]/.test(w.text);
-        return hasLetter && w.confidence > 25;
+        return hasLetter && w.confidence >= state.filters.scanSensitivity;
       });
 
       showOCRLoading(false);
