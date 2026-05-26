@@ -1291,9 +1291,16 @@ document.addEventListener("DOMContentLoaded", () => {
 
   async function getPracticeSentences(word) {
     const lowerWord = word.toLowerCase();
+
+    // Check if we have pre-baked overrides for this word (handles offline demo seamlessly)
+    const prebaked = generateLocalSentences(word);
+    if (prebaked) {
+      return prebaked;
+    }
+
     // Return from cache if we already have AI-generated sentences for this word
     const cached = state.practiceSentences[lowerWord];
-    if (cached && cached.length === 5 && !cached._isFallback) {
+    if (cached && cached.length === 5) {
       return cached;
     }
 
@@ -1333,16 +1340,10 @@ document.addEventListener("DOMContentLoaded", () => {
         console.warn(`Backend returned error status ${response.status}:`, errData.error || 'Unknown error');
       }
     } catch (err) {
-      console.warn(`Backend generation failed or timed out for "${word}". Using local template engine fallback.`, err.message);
+      console.warn(`Backend generation failed or timed out for "${word}".`, err.message);
     }
 
-    // Fallback: Use local offline sentence generator
-    // Mark as fallback so we'll retry from API next time
-    const fallbackSentences = generateLocalSentences(word);
-    fallbackSentences._isFallback = true;
-    state.practiceSentences[lowerWord] = fallbackSentences;
-    // Don't persist fallback sentences — let the user retry from API next time
-    return fallbackSentences;
+    return null;
   }
 
   function generateLocalSentences(word) {
@@ -1381,24 +1382,7 @@ document.addEventListener("DOMContentLoaded", () => {
     };
 
     if (overrides[lower]) return overrides[lower];
-
-    // Smart contextual sentence templates for arbitrary words (extremely simple words)
-    const templates = [
-      "The {word} is on the desk.",
-      "Can you show me the {word}?",
-      "He likes to {word} a lot.",
-      "Please try to {word} this.",
-      "We will check the {word} today.",
-      "{word} is very easy to learn.",
-      "I want to {word} right now.",
-      "She wants this {word} today.",
-      "They speak about {word} now.",
-      "Let us practice {word} together."
-    ];
-
-    // Shuffle and pick 5 templates
-    const shuffled = [...templates].sort(() => 0.5 - Math.random());
-    return shuffled.slice(0, 5).map(t => t.replace(/{word}/g, word));
+    return null;
   }
 
   function renderPracticeScreen() {
@@ -1502,6 +1486,18 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const sentences = await getPracticeSentences(word);
     panelEl.innerHTML = "";
+
+    if (!sentences || sentences.length === 0) {
+      panelEl.innerHTML = `
+        <div class="sentence-error-state" style="padding: 24px; text-align: center; color: var(--color-text-muted);">
+          <span style="font-size: 2.2rem; display: block; margin-bottom: 8px;">⏳🍳</span>
+          <p style="font-size: 0.95rem; margin: 0; line-height: 1.5; font-weight: 500; color: var(--color-text);">
+            Birbal ki khichdi abhi pak rahi h, thoda samay lagega. Sorry! 🙏
+          </p>
+        </div>
+      `;
+      return;
+    }
 
     sentences.forEach((sentence, idx) => {
       const item = document.createElement("div");
