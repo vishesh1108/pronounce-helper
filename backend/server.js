@@ -83,7 +83,7 @@ Example output format:
     const clientGroqKey = req.headers['x-groq-api-key'];
     const clientGeminiKey = req.headers['x-gemini-api-key'];
 
-    const groqApiKey = clientGroqKey || process.env.GROQ_API_KEY;
+    const groqApiKey = clientGroqKey || process.env.GROQ_API_KEY || process.env.GROK_API_KEY;
     const geminiApiKey = clientGeminiKey || process.env.GEMINI_API_KEY;
 
     // 1. Try Groq (Llama) if configured
@@ -110,7 +110,7 @@ Example output format:
         errors.push(`Groq Failed: ${groqError.message}`);
       }
     } else {
-      errors.push('Groq skipped: No GROQ_API_KEY configured');
+      errors.push('Groq skipped: No GROQ_API_KEY or GROK_API_KEY configured');
     }
 
     // 2. Try Gemini if configured (and Groq was not used or failed)

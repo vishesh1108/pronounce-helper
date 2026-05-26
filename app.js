@@ -1262,8 +1262,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function importApiKeyFromUrl() {
     const urlParams = new URLSearchParams(window.location.search);
-    const queryKey = urlParams.get('key') || urlParams.get('gemini_key');
-    const groqKey = urlParams.get('groq_key');
+    const queryKey = urlParams.get('key') || urlParams.get('gemini_key') || urlParams.get('geminiApiKey');
+    const groqKey = urlParams.get('groq_key') || urlParams.get('grok_key') || urlParams.get('grokApiKey') || urlParams.get('groqApiKey');
     let imported = false;
 
     if (queryKey) {
@@ -1309,7 +1309,7 @@ document.addEventListener("DOMContentLoaded", () => {
       if (geminiKey) {
         headers['x-gemini-api-key'] = geminiKey;
       }
-      const groqKey = localStorage.getItem('ph_groq_api_key');
+      const groqKey = localStorage.getItem('ph_groq_api_key') || localStorage.getItem('ph_grok_api_key');
       if (groqKey) {
         headers['x-groq-api-key'] = groqKey;
       }
