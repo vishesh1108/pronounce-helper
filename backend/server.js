@@ -104,7 +104,7 @@ Example output format:
             },
             body: JSON.stringify({
               messages: [{ role: 'user', content: prompt }],
-              model: 'grok-beta',
+              model: 'grok-3-mini',
               temperature: 0.5,
               stream: false
             })
