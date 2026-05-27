@@ -1901,13 +1901,7 @@ document.addEventListener("DOMContentLoaded", () => {
         buttonEl.innerHTML = '<i class="fa-solid fa-check"></i>';
         buttonEl.setAttribute("title", "Pronounced Correctly!");
 
-        const successMsgs = [
-          "Muah! You nailed it! 💋",
-          "Perfect pronunciation! 😘",
-          "Awesome! Mwah! 💋",
-          "Spot on! Beautiful! 💋"
-        ];
-        const msg = successMsgs[Math.floor(Math.random() * successMsgs.length)];
+        const msg = "Sahi Pakde hain 😊";
         feedbackEl.className = "sentence-feedback success";
         feedbackEl.innerHTML = `<i class="fa-solid fa-circle-check"></i> <span>${msg}</span>`;
         feedbackEl.classList.remove("hidden");
@@ -1918,13 +1912,7 @@ document.addEventListener("DOMContentLoaded", () => {
         buttonEl.innerHTML = '<i class="fa-solid fa-rotate-right"></i>';
         buttonEl.setAttribute("title", "Retry Speaking");
 
-        const retryMsgs = [
-          "Retry! You got this! 💪",
-          "Almost! Keep trying! 📣",
-          "Don't give up! Try again! 🚀",
-          "So close! Give it another go! 🌟"
-        ];
-        const msg = retryMsgs[Math.floor(Math.random() * retryMsgs.length)];
+        const msg = "wapas se try karo 🙂";
         feedbackEl.className = "sentence-feedback failed";
         feedbackEl.innerHTML = `<i class="fa-solid fa-triangle-exclamation"></i> <span>${msg}</span>`;
         feedbackEl.classList.remove("hidden");
