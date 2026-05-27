@@ -377,7 +377,10 @@ document.addEventListener("DOMContentLoaded", () => {
     el.drawerBgOverlay.addEventListener("click", closeWordDrawer);
     
     el.btnSpeak.addEventListener("click", () => {
-      if (state.selectedWord) speakWord(state.selectedWord);
+      if (state.selectedWord) {
+        speakWord(state.selectedWord);
+        incrementWordTap(state.selectedWord);
+      }
     });
     
     el.btnBookmarkWord.addEventListener("click", toggleBookmarkWord);
@@ -1042,6 +1045,19 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
+  function incrementWordTap(word) {
+    const cleanWord = word.trim().replace(/^[^a-zA-Z]+|[^a-zA-Z]+$/g, "");
+    if (!cleanWord) return;
+
+    const lowerWord = cleanWord.toLowerCase();
+    state.wordTaps[lowerWord] = (state.wordTaps[lowerWord] || 0) + 1;
+    localStorage.setItem("ph_word_taps", JSON.stringify(state.wordTaps));
+
+    if (state.wordTaps[lowerWord] === 2) {
+      showToast(`"${cleanWord}" added to Practice!`);
+    }
+  }
+
   function handleWordTap(wordObj, nodeEl) {
     document.querySelectorAll(".word-node").forEach(n => n.classList.remove("active-selection"));
     nodeEl.classList.add("active-selection");
@@ -1050,14 +1066,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const cleanWord = rawWord.trim().replace(/^[^a-zA-Z]+|[^a-zA-Z]+$/g, "");
     if (!cleanWord) return;
 
-    // Track word taps for practice tab
-    const lowerWord = cleanWord.toLowerCase();
-    state.wordTaps[lowerWord] = (state.wordTaps[lowerWord] || 0) + 1;
-    localStorage.setItem("ph_word_taps", JSON.stringify(state.wordTaps));
-
-    if (state.wordTaps[lowerWord] === 2) {
-      showToast(`"${cleanWord}" added to Practice!`);
-    }
+    incrementWordTap(cleanWord);
 
     speakWord(cleanWord);
     addToHistory(cleanWord);
@@ -1688,12 +1697,14 @@ document.addEventListener("DOMContentLoaded", () => {
       card.dataset.word = word;
 
       const taps = state.wordTaps[word];
+      const dotColorClass = taps <= 3 ? "tap-dot-yellow" : "tap-dot-red";
+      const dotTitle = `Tapped ${taps} times`;
 
       card.innerHTML = `
         <div class="practice-card-header">
           <div class="word-info">
             <h3>${word}</h3>
-            <span class="tap-badge">Tapped ${taps} times</span>
+            <span class="tap-dot ${dotColorClass}" title="${dotTitle}"></span>
           </div>
           <div class="action-buttons">
             <button class="speak-word-btn" title="Pronounce Word">

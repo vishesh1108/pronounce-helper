@@ -1736,14 +1736,23 @@ button, input, select {
   margin: 0;
 }
 
-.tap-badge {
-  font-size: 0.68rem;
-  font-weight: 700;
-  padding: 2px 8px;
-  border-radius: 12px;
-  background-color: var(--color-primary-light);
-  color: var(--color-primary);
-  text-transform: uppercase;
+.tap-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+  cursor: help;
+}
+
+.tap-dot-yellow {
+  background-color: #fbbf24;
+  box-shadow: 0 0 8px rgba(251, 191, 36, 0.5);
+}
+
+.tap-dot-red {
+  background-color: var(--color-danger);
+  box-shadow: 0 0 8px rgba(239, 68, 68, 0.5);
 }
 
 .practice-card-header .action-buttons {
