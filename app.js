@@ -1699,6 +1699,9 @@ document.addEventListener("DOMContentLoaded", () => {
             <button class="speak-word-btn" title="Pronounce Word">
               <i class="fa-solid fa-volume-high"></i>
             </button>
+            <button class="delete-word-btn" title="Delete Word">
+              <i class="fa-solid fa-trash-can"></i>
+            </button>
             <button class="toggle-sentences-btn" title="Show Sentences">
               <i class="fa-solid fa-chevron-down"></i>
             </button>
@@ -1715,6 +1718,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const toggleBtn = card.querySelector(".toggle-sentences-btn");
       const panel = card.querySelector(".practice-sentences-panel");
       const speakBtn = card.querySelector(".speak-word-btn");
+      const deleteBtn = card.querySelector(".delete-word-btn");
 
       const collapsePanel = () => {
         panel.classList.add("hidden");
@@ -1758,6 +1762,20 @@ document.addEventListener("DOMContentLoaded", () => {
       });
 
       speakBtn.addEventListener("click", () => speakWord(word));
+      
+      deleteBtn.addEventListener("click", () => {
+        if (confirm(`Remove "${word}" from practice?`)) {
+          delete state.wordTaps[word];
+          localStorage.setItem("ph_word_taps", JSON.stringify(state.wordTaps));
+          if (state.practiceSentences[word]) {
+            delete state.practiceSentences[word];
+            localStorage.setItem("ph_word_sentences", JSON.stringify(state.practiceSentences));
+          }
+          renderPracticeScreen();
+          showToast(`Removed "${word}" from Practice`);
+        }
+      });
+
       listContainer.appendChild(card);
     });
   }

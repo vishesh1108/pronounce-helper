@@ -1752,7 +1752,7 @@ button, input, select {
   gap: 8px;
 }
 
-.speak-word-btn, .toggle-sentences-btn {
+.speak-word-btn, .delete-word-btn, .toggle-sentences-btn {
   background: none;
   border: none;
   font-size: 0.95rem;
@@ -1770,6 +1770,11 @@ button, input, select {
 .speak-word-btn:hover {
   background-color: var(--color-primary-light);
   color: var(--color-primary);
+}
+
+.delete-word-btn:hover {
+  background-color: rgba(239, 68, 68, 0.1);
+  color: var(--color-danger);
 }
 
 .toggle-sentences-btn:hover {
