@@ -501,26 +501,9 @@ document.addEventListener("DOMContentLoaded", () => {
       img.onload = function() {
         state.rawUploadedImage = img;
 
-        // Run automated page boundary detection and warping completely in the background (no popup clicks required!)
-        const corners = window.ScannerWarper.detectCorners(img);
-        const flatCanvas = window.ScannerWarper.warpPerspective(img, corners, 1200, 1600);
-        const deskewedCanvas = window.ScannerWarper.autoDeskew(flatCanvas);
-
-        const flatImg = new Image();
-        flatImg.onload = async function() {
-          state.originalImage = flatImg;
-          
-          switchScreen("scan");
-          showOCRLoading(true);
-          updateOCRProgress("Optimizing image size...", 0.05);
-
-          // Generate resized images for OCR and live previews (upgraded to 2000px for high-accuracy text rendering)
-          state.ocrSourceImage = await resizeImage(flatImg, 2000);
-          state.previewSourceImage = await resizeImage(flatImg, 600);
-
-          runOCRProcessing(state.ocrSourceImage);
-        };
-        flatImg.src = deskewedCanvas.toDataURL();
+        // Immediately trigger the interactive scanner crop UI
+        switchScreen("scan");
+        el.btnAdjustCrop.click();
       };
       img.src = event.target.result;
     };
@@ -674,14 +657,26 @@ document.addEventListener("DOMContentLoaded", () => {
         data[i + 2] = Math.min(255, Math.max(0, b));
       }
 
-      // 2. Custom 3x3 Convolution Sharpening (Applied only for OCR to keep visual display smooth and natural)
-      if (forOCR) {
+      // 2. Custom 3x3 Convolution Sharpening (Applied to OCR, and visually if adaptiveThreshold is active to show true state)
+      if (forOCR || filters.adaptiveThreshold) {
         sharpenImageDirect(imgData);
       }
 
-      // 3. Local Adaptive Thresholding/Binarization (Applied only in the background for OCR, never shown visually!)
-      if (forOCR && filters.adaptiveThreshold) {
-        applyBradleyThreshold(imgData, 15, 8);
+      // 3. Local Adaptive Thresholding/Binarization
+      if (filters.adaptiveThreshold) {
+        // Map user scan sensitivity (5 to 70) to Bradley threshold percentage (30% down to 5%)
+        // A higher sensitivity slider maps to a lower threshold value, keeping more fainter text pixels.
+        const bradleyThreshold = Math.max(5, Math.min(30, 25 - (filters.scanSensitivity - 5)));
+        
+        // Determine local window size based on image width to prevent character fragmentation on high-res images
+        let windowFraction = 8;
+        if (width > 1500) {
+          windowFraction = 24; // smaller local window for 2000px images
+        } else if (width > 1000) {
+          windowFraction = 16;
+        }
+        
+        applyBradleyThreshold(imgData, bradleyThreshold, windowFraction);
       }
 
       ctx.putImageData(imgData, 0, 0);
@@ -895,7 +890,7 @@ document.addEventListener("DOMContentLoaded", () => {
       
       // Apply current settings before scan (Layout Mode & Sensitivity/Confidence cutoff)
       await tesseractWorker.setParameters({
-        tessedit_pageseg_mode: state.filters.pagesegMode,
+        tessedit_pageseg_mode: parseInt(state.filters.pagesegMode),
         tessedit_enable_bigram_correction: '1',
         language_model_penalty_non_dict_word: '0',
         language_model_penalty_non_freq_dict_word: '0',
@@ -907,9 +902,11 @@ document.addEventListener("DOMContentLoaded", () => {
       const result = await tesseractWorker.recognize(imageSrc);
       
       state.ocrWords = result.data.words.filter(w => {
-        // Filter out punctuation-only strings and words with confidence < scanSensitivity (slider-based)
+        // Filter out punctuation-only strings and words with confidence < cutoff
+        // A higher sensitivity slider maps to a lower confidence cutoff (permissive)
+        const confidenceCutoff = Math.max(5, 50 - state.filters.scanSensitivity);
         const hasLetter = /[a-zA-Z]/.test(w.text);
-        return hasLetter && w.confidence >= state.filters.scanSensitivity;
+        return hasLetter && w.confidence >= confidenceCutoff;
       });
 
       showOCRLoading(false);
