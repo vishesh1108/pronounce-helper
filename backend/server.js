@@ -28,7 +28,7 @@ app.use(cors({
   }
 }));
 
-app.use(express.json());
+app.use(express.json({ limit: '20mb' }));
 
 // Rate Limiter: Prevent API key abuse by limiting IPs to 60 requests per 15 minutes
 const apiLimiter = rateLimit({
@@ -115,6 +115,78 @@ Example output format:
   } catch (error) {
     console.error('Sentence generation error:', error.message);
     res.status(500).json({ error: 'Failed to generate sentences', details: error.message });
+  }
+});
+// AI OCR endpoint (Gemini 2.5 Flash multimodal)
+app.post('/api/ocr', async (req, res) => {
+  const { image } = req.body;
+  if (!image) {
+    return res.status(400).json({ error: 'Image data is required' });
+  }
+
+  const clientGeminiKey = req.headers['x-gemini-api-key'];
+  const rawKey = clientGeminiKey || process.env.GEMINI_API_KEY;
+  if (!rawKey) {
+    return res.status(500).json({ error: 'Gemini API key is not configured.' });
+  }
+  const geminiApiKey = rawKey.trim().replace(/[\r\n\s]+/g, "");
+
+  try {
+    const match = image.match(/^data:([^;]+);base64,(.+)$/);
+    if (!match) {
+      return res.status(400).json({ error: 'Invalid base64 image format' });
+    }
+    const mimeType = match[1];
+    const base64Data = match[2];
+
+    console.log('Sending image to Gemini for OCR...');
+    const { GoogleGenAI } = require('@google/genai');
+    const ai = new GoogleGenAI({ apiKey: geminiApiKey });
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: [
+        {
+          inlineData: {
+            mimeType: mimeType,
+            data: base64Data
+          }
+        },
+        'Analyze this document page. Locate and transcribe every single English word. For each word, return a JSON object with its "text" and its bounding box normalized to a 0-1000 coordinate system in the format [ymin, xmin, ymax, xmax]. Ensure the coordinate points are very precise. Do not group words; return them individually. Do not skip any words.'
+      ],
+      config: {
+        responseMimeType: 'application/json',
+        responseSchema: {
+          type: 'OBJECT',
+          properties: {
+            words: {
+              type: 'ARRAY',
+              description: 'List of detected individual words and their bounding boxes.',
+              items: {
+                type: 'OBJECT',
+                properties: {
+                  text: { type: 'STRING', description: 'The exact word text.' },
+                  box_2d: {
+                    type: 'ARRAY',
+                    items: { type: 'INTEGER' },
+                    description: 'The bounding box [ymin, xmin, ymax, xmax] normalized to 0-1000.'
+                  }
+                },
+                required: ['text', 'box_2d']
+              }
+            }
+          },
+          required: ['words']
+        }
+      }
+    });
+
+    console.log('Gemini OCR API success!');
+    res.json(JSON.parse(response.text));
+
+  } catch (error) {
+    console.error('Gemini OCR error:', error.message);
+    res.status(500).json({ error: 'Failed to perform AI OCR', details: error.message });
   }
 });
 

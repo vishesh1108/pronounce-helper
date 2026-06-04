@@ -883,8 +883,75 @@ document.addEventListener("DOMContentLoaded", () => {
 
   async function executeOCR(imageSrc) {
     try {
+      updateOCRProgress("Analyzing page with Gemini AI...", 0.4);
+
+      const headers = {
+        'Content-Type': 'application/json'
+      };
+      const geminiKey = localStorage.getItem('ph_gemini_api_key');
+      if (geminiKey) {
+        headers['x-gemini-api-key'] = geminiKey;
+      }
+
+      const response = await fetch(`${BACKEND_URL}/api/ocr`, {
+        method: 'POST',
+        headers: headers,
+        body: JSON.stringify({ image: imageSrc })
+      });
+
+      if (!response.ok) {
+        const errText = await response.text();
+        throw new Error(`AI OCR Server error: ${errText}`);
+      }
+
+      const data = await response.json();
+      if (!data.words || !Array.isArray(data.words)) {
+        throw new Error("Invalid response format from AI OCR server");
+      }
+
+      // Map Gemini's 0-1000 coordinate bounds to the format required by drawWordOverlays
+      // Bounding coordinates in Gemini: box_2d is [ymin, xmin, ymax, xmax] (0 to 1000)
+      // Destination format expected: { text, bbox: { x0, y0, x1, y1 }, confidence }
+      state.ocrWords = data.words.map(w => {
+        const [ymin, xmin, ymax, xmax] = w.box_2d;
+        
+        // Convert normalized 0-1000 coordinates back to the original source image size (naturalWidth/naturalHeight)
+        const naturalWidth = el.sourceImage.naturalWidth || 1000;
+        const naturalHeight = el.sourceImage.naturalHeight || 1000;
+
+        return {
+          text: w.text,
+          bbox: {
+            x0: (xmin / 1000) * naturalWidth,
+            y0: (ymin / 1000) * naturalHeight,
+            x1: (xmax / 1000) * naturalWidth,
+            y1: (ymax / 1000) * naturalHeight
+          },
+          confidence: 99
+        };
+      });
+
+      showOCRLoading(false);
+      state.isScanning = false;
+
+      if (state.ocrWords.length === 0) {
+        showToast("No readable English words found. Adjust crop or rotate.");
+      } else {
+        showToast(`Scan complete! Found ${state.ocrWords.length} words using Gemini AI.`);
+        drawWordOverlays(state.ocrWords);
+      }
+
+    } catch (err) {
+      console.warn("Gemini AI OCR failed. Falling back to local Tesseract...", err.message);
+      showToast("Gemini AI OCR failed. Running offline scan...");
+      await runLocalTesseract(imageSrc);
+    }
+  }
+
+  async function runLocalTesseract(imageSrc) {
+    try {
       if (!tesseractWorker) {
-        updateOCRProgress("Initializing OCR engine...", 0.1);
+        updateOCRProgress("Initializing local OCR engine...", 0.1);
         await initWorker();
       }
       
@@ -897,7 +964,7 @@ document.addEventListener("DOMContentLoaded", () => {
         tessedit_char_blacklist: '`|~[]{}'
       });
       
-      updateOCRProgress("Analyzing structure...", 0.9);
+      updateOCRProgress("Analyzing structure (Local)...", 0.9);
       // Reuse the pre-warmed background worker instead of spinning one up on-demand!
       const result = await tesseractWorker.recognize(imageSrc);
       
@@ -915,7 +982,7 @@ document.addEventListener("DOMContentLoaded", () => {
       if (state.ocrWords.length === 0) {
         showToast("No readable English words found. Adjust contrast or rotate.");
       } else {
-        showToast(`Scan complete! Found ${state.ocrWords.length} words.`);
+        showToast(`Scan complete! Found ${state.ocrWords.length} words (Local Scan).`);
         drawWordOverlays(state.ocrWords);
       }
     } catch (err) {
