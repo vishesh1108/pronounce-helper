@@ -657,13 +657,13 @@ document.addEventListener("DOMContentLoaded", () => {
         data[i + 2] = Math.min(255, Math.max(0, b));
       }
 
-      // 2. Custom 3x3 Convolution Sharpening (Applied to OCR, and visually if adaptiveThreshold is active to show true state)
-      if (forOCR || filters.adaptiveThreshold) {
+      // 2. Custom 3x3 Convolution Sharpening (Applied only for OCR to keep visual display smooth and natural)
+      if (forOCR) {
         sharpenImageDirect(imgData);
       }
 
-      // 3. Local Adaptive Thresholding/Binarization
-      if (filters.adaptiveThreshold) {
+      // 3. Local Adaptive Thresholding/Binarization (Applied only in the background for OCR, never shown visually!)
+      if (forOCR && filters.adaptiveThreshold) {
         // Map user scan sensitivity (5 to 70) to Bradley threshold percentage (30% down to 5%)
         // A higher sensitivity slider maps to a lower threshold value, keeping more fainter text pixels.
         const bradleyThreshold = Math.max(5, Math.min(30, 25 - (filters.scanSensitivity - 5)));
@@ -904,7 +904,7 @@ document.addEventListener("DOMContentLoaded", () => {
       state.ocrWords = result.data.words.filter(w => {
         // Filter out punctuation-only strings and words with confidence < cutoff
         // A higher sensitivity slider maps to a lower confidence cutoff (permissive)
-        const confidenceCutoff = Math.max(5, 50 - state.filters.scanSensitivity);
+        const confidenceCutoff = Math.max(5, 40 - state.filters.scanSensitivity);
         const hasLetter = /[a-zA-Z]/.test(w.text);
         return hasLetter && w.confidence >= confidenceCutoff;
       });
