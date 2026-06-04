@@ -84,20 +84,17 @@ Example output format:
     } 
     // 2. Try Gemini if GEMINI_API_KEY is configured (and Groq was not used)
     else if (process.env.GEMINI_API_KEY) {
-      console.log('Using Gemini API...');
-      const { GoogleGenAI } = require('@google/generative-ai');
-      const { GoogleGenAI: GenAI } = require('@google/generative-ai');
-      // Using standard package initialization
-      const { GoogleGenerativeAI } = require('@google/generative-ai');
-      const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-      const model = genAI.getGenerativeModel({ 
+      console.log('Using Gemini API (via @google/genai)...');
+      const { GoogleGenAI } = require('@google/genai');
+      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+      const response = await ai.models.generateContent({
         model: 'gemini-2.5-flash-lite',
-        generationConfig: { responseMimeType: 'application/json' }
+        contents: prompt,
+        config: {
+          responseMimeType: 'application/json'
+        }
       });
-
-      const result = await model.generateContent(prompt);
-      const responseText = result.response.text();
-      sentences = parseJsonArray(responseText);
+      sentences = parseJsonArray(response.text);
     } 
     // 3. Neither key is configured
     else {
