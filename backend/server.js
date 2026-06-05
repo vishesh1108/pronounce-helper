@@ -79,8 +79,8 @@ Example output format:
     // 1. Try Groq if a key is available
     if (groqApiKey) {
       console.log('Using Groq API...');
-      const Groq = require('@groq/sdk');
-      const groq = new Groq({ apiKey: groqApiKey });
+      const GroqSDK = require('groq-sdk');
+      const groq = new (GroqSDK.default || GroqSDK)({ apiKey: groqApiKey });
       
       const completion = await groq.chat.completions.create({
         messages: [{ role: 'user', content: prompt }],
