@@ -63,14 +63,24 @@ Return ONLY a valid JSON array of strings containing the 5 sentences. Do not inc
 Example output format:
 ["Sentence 1 with word", "Sentence 2 with word", "Sentence 3 with word", "Sentence 4 with word", "Sentence 5 with word"]`;
 
+  // Support client-passed API keys from request headers as overrides
+  const clientGroqKey = req.headers['x-groq-api-key'];
+  const clientGeminiKey = req.headers['x-gemini-api-key'];
+
+  const rawGroqKey = clientGroqKey || process.env.GROQ_API_KEY || '';
+  const rawGeminiKey = clientGeminiKey || process.env.GEMINI_API_KEY || '';
+
+  const groqApiKey = rawGroqKey.trim().replace(/[\r\n\s]+/g, "");
+  const geminiApiKey = rawGeminiKey.trim().replace(/[\r\n\s]+/g, "");
+
   try {
     let sentences = null;
 
-    // 1. Try Groq (Llama) if GROQ_API_KEY is configured
-    if (process.env.GROQ_API_KEY) {
+    // 1. Try Groq if a key is available
+    if (groqApiKey) {
       console.log('Using Groq API...');
       const Groq = require('@groq/sdk');
-      const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+      const groq = new Groq({ apiKey: groqApiKey });
       
       const completion = await groq.chat.completions.create({
         messages: [{ role: 'user', content: prompt }],
@@ -82,13 +92,13 @@ Example output format:
       const responseText = completion.choices[0]?.message?.content || '';
       sentences = parseJsonArray(responseText);
     } 
-    // 2. Try Gemini if GEMINI_API_KEY is configured (and Groq was not used)
-    else if (process.env.GEMINI_API_KEY) {
+    // 2. Try Gemini if a key is available (and Groq was not used)
+    else if (geminiApiKey) {
       console.log('Using Gemini API (via @google/genai)...');
       const { GoogleGenAI } = require('@google/genai');
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+      const ai = new GoogleGenAI({ apiKey: geminiApiKey });
       const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash-lite',
+        model: 'gemini-2.5-flash',
         contents: prompt,
         config: {
           responseMimeType: 'application/json'
@@ -98,8 +108,8 @@ Example output format:
     } 
     // 3. Neither key is configured
     else {
-      console.error('No API keys configured on backend.');
-      return res.status(500).json({ error: 'Server API keys not configured. Add GROQ_API_KEY or GEMINI_API_KEY to server environment.' });
+      console.error('No API keys configured.');
+      return res.status(500).json({ error: 'No API keys configured. Please add GROQ_API_KEY or GEMINI_API_KEY to Vercel environment or in client settings.' });
     }
 
     if (!sentences || sentences.length < 5) {
