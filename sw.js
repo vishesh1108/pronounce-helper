@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pronounce-helper-v19';
+const CACHE_NAME = 'pronounce-helper-v20';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',

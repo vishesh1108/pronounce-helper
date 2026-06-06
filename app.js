@@ -2055,41 +2055,121 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function verifySpeech(target, spoken, targetWord) {
-    const spokenLower = spoken.toLowerCase();
-    const cleanTargetWord = targetWord.toLowerCase().replace(/[^\w\s]/g, "");
+    const tWords = normalizeSpeechWords(target);
+    const sWords = normalizeSpeechWords(spoken);
+    const targetCandidates = normalizeSpeechWords(targetWord);
+    const cleanTargetWord = targetCandidates[0] || "";
 
-    const tWords = target.toLowerCase().replace(/[^\w\s]/g, "").split(/\s+/).filter(Boolean);
-    const sWords = spokenLower.replace(/[^\w\s]/g, "").split(/\s+/).filter(Boolean);
+    if (tWords.length === 0 || sWords.length === 0 || !cleanTargetWord) return false;
 
-    if (tWords.length === 0) return false;
+    // Browser speech recognition often returns homophones or small spelling variants.
+    // Keep the target word important, but compare it fuzzily so correct speech is not rejected unfairly.
+    const targetIndex = tWords.findIndex(w => wordsSoundClose(w, cleanTargetWord));
+    const hasTargetWord = sWords.some(w => wordsSoundClose(w, cleanTargetWord));
+    const targetMatchedByContext = targetIndex !== -1 && hasNearbySequenceMatch(tWords, sWords, targetIndex);
 
-    // 1. Force check: The target practice word MUST be present in the spoken transcription!
-    const hasTargetWord = sWords.some(w => {
-      return w === cleanTargetWord || 
-             w === cleanTargetWord + 's' || 
-             (cleanTargetWord.endsWith('s') && w === cleanTargetWord.slice(0, -1)) ||
-             (cleanTargetWord.length >= 4 && (w.startsWith(cleanTargetWord) || cleanTargetWord.startsWith(w)));
-    });
-
-    if (!hasTargetWord) {
-      console.log(`Speech verification failed: Spoken text did not contain target word "${targetWord}".`);
+    if (!hasTargetWord && !targetMatchedByContext) {
+      console.log(`Speech verification failed: Spoken text did not contain a close match for target word "${targetWord}".`, { target, spoken, tWords, sWords });
       return false;
     }
 
-    // 2. Sequence check for surrounding simple words
     let matchCount = 0;
     let sIdx = 0;
 
     for (let i = 0; i < tWords.length; i++) {
-      const foundIdx = sWords.indexOf(tWords[i], sIdx);
+      const foundIdx = findCloseWordIndex(tWords[i], sWords, sIdx);
       if (foundIdx !== -1) {
         matchCount++;
-        sIdx = foundIdx + 1; // enforce chronological word order
+        sIdx = foundIdx + 1; // preserve sentence order without demanding exact transcription
       }
     }
 
     const ratio = matchCount / tWords.length;
-    return ratio >= 0.85; // Slightly stricter 85% word match threshold
+    const allowedMisses = tWords.length <= 5 ? 1 : 2;
+    const enoughWordsMatched = matchCount >= Math.max(1, tWords.length - allowedMisses);
+    const enoughRatioMatched = ratio >= (tWords.length <= 6 ? 0.78 : 0.82);
+
+    console.log("Speech verification result:", { target, spoken, matchCount, total: tWords.length, ratio });
+    return enoughWordsMatched || enoughRatioMatched;
+  }
+
+  function normalizeSpeechWords(text) {
+    return String(text || "")
+      .toLowerCase()
+      .replace(/[’']/g, "")
+      .replace(/\bcan\s+not\b/g, "cannot")
+      .replace(/\bgoing\s+to\b/g, "gonna")
+      .replace(/[^a-z0-9\s]/g, " ")
+      .split(/\s+/)
+      .filter(Boolean)
+      .map(normalizeSpeechWord);
+  }
+
+  function normalizeSpeechWord(word) {
+    const aliases = {
+      too: "to",
+      two: "to",
+      for: "four",
+      won: "one",
+      red: "read",
+      reed: "read",
+      write: "right",
+      sea: "see",
+      here: "hear",
+      there: "their",
+      theyre: "their",
+      your: "youre",
+      practise: "practice"
+    };
+    const normalized = aliases[word] || word;
+    return normalized.endsWith("s") && normalized.length > 4 ? normalized.slice(0, -1) : normalized;
+  }
+
+  function findCloseWordIndex(targetWord, spokenWords, startIdx) {
+    for (let i = startIdx; i < spokenWords.length; i++) {
+      if (wordsSoundClose(targetWord, spokenWords[i])) return i;
+    }
+    return -1;
+  }
+
+  function wordsSoundClose(a, b) {
+    if (!a || !b) return false;
+    if (a === b) return true;
+    if (a.length >= 4 && b.length >= 4 && (a.startsWith(b) || b.startsWith(a))) return true;
+
+    const maxLen = Math.max(a.length, b.length);
+    if (maxLen <= 3) return false;
+
+    const distance = levenshteinDistance(a, b);
+    const allowedDistance = maxLen <= 5 ? 1 : 2;
+    return distance <= allowedDistance;
+  }
+
+  function hasNearbySequenceMatch(targetWords, spokenWords, targetIndex) {
+    const before = targetWords[targetIndex - 1];
+    const after = targetWords[targetIndex + 1];
+    const beforeMatched = before ? spokenWords.some(w => wordsSoundClose(before, w)) : true;
+    const afterMatched = after ? spokenWords.some(w => wordsSoundClose(after, w)) : true;
+    return beforeMatched && afterMatched;
+  }
+
+  function levenshteinDistance(a, b) {
+    const dp = Array.from({ length: a.length + 1 }, () => Array(b.length + 1).fill(0));
+    for (let i = 0; i <= a.length; i++) dp[i][0] = i;
+    for (let j = 0; j <= b.length; j++) dp[0][j] = j;
+
+    for (let i = 1; i <= a.length; i++) {
+      for (let j = 1; j <= b.length; j++) {
+        const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+        dp[i][j] = Math.min(
+          dp[i - 1][j] + 1,
+          dp[i][j - 1] + 1,
+          dp[i - 1][j - 1] + cost
+        );
+      }
+    }
+
+    return dp[a.length][b.length];
   }
 
   // --- DYNAMIC INTERACTIVE SENTENCE READER WITH REAL-TIME SPEECH SYNTHESIS WORD HIGHLIGHTING ---
