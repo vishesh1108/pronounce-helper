@@ -2472,18 +2472,33 @@ document.addEventListener("DOMContentLoaded", () => {
       window.speechSynthesis.cancel();
 
       utterance = new SpeechSynthesisUtterance(sentence);
-      utterance.lang = "en-US";
       utterance.rate = currentSpeed;
 
       const voices = window.speechSynthesis.getVoices();
-      // Prioritize local English voices to ensure onboundary fires reliably
-      const engVoice = voices.find(v => v.localService && v.lang.startsWith("en-IN")) ||
-                       voices.find(v => v.localService && v.lang.startsWith("en-US")) ||
-                       voices.find(v => v.localService && v.lang.startsWith("en")) ||
-                       voices.find(v => v.lang.startsWith("en-IN")) ||
-                       voices.find(v => v.lang.startsWith("en-US")) ||
-                       voices.find(v => v.lang.startsWith("en"));
-      if (engVoice) utterance.voice = engVoice;
+      
+      let selectedVoice = null;
+      if (state.selectedVoiceName) {
+        selectedVoice = voices.find(v => v.name === state.selectedVoiceName);
+      }
+      
+      if (!selectedVoice) {
+        // Prioritize Indian English (en-IN) voices
+        selectedVoice = voices.find(v => v.localService && v.lang.toLowerCase().replace('_', '-').startsWith('en-in')) ||
+                        voices.find(v => v.lang.toLowerCase().replace('_', '-').startsWith('en-in')) ||
+                        // Then other local/remote English voices
+                        voices.find(v => v.localService && v.lang.toLowerCase().replace('_', '-').startsWith('en-gb')) ||
+                        voices.find(v => v.localService && v.lang.toLowerCase().replace('_', '-').startsWith('en-us')) ||
+                        voices.find(v => v.localService && v.lang.toLowerCase().startsWith('en')) ||
+                        voices.find(v => v.lang.toLowerCase().startsWith('en')) ||
+                        voices[0];
+      }
+      
+      if (selectedVoice) {
+        utterance.voice = selectedVoice;
+        utterance.lang = selectedVoice.lang;
+      } else {
+        utterance.lang = "en-US";
+      }
 
       // Save a global reference to prevent aggressive garbage collection on Chrome
       window.activeUtterance = utterance;
