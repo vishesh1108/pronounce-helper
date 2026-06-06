@@ -40,6 +40,133 @@ const apiLimiter = rateLimit({
 // Apply rate limiter to the sentence generation API
 app.use('/api/', apiLimiter);
 
+function getGroqApiKey(req) {
+  const clientGroqKey = req.headers['x-groq-api-key'];
+  const rawGroqKey = clientGroqKey || process.env.GROQ_API_KEY || '';
+  return rawGroqKey.trim().replace(/[\r\n\s]+/g, "");
+}
+
+function getGeminiApiKey(req) {
+  const clientGeminiKey = req.headers['x-gemini-api-key'];
+  const rawGeminiKey = clientGeminiKey || process.env.GEMINI_API_KEY || '';
+  return rawGeminiKey.trim().replace(/[\r\n\s]+/g, "");
+}
+
+// Check and evaluate pronunciation using Gemini 2.5 Flash if available, or fall back to Groq Whisper transcription
+app.post('/api/pronunciation-check', async (req, res) => {
+  const { audio, mimeType, targetSentence, targetWord } = req.body || {};
+  if (!audio) {
+    return res.status(400).json({ error: 'Audio data is required' });
+  }
+
+  const geminiApiKey = getGeminiApiKey(req);
+  const groqApiKey = getGroqApiKey(req);
+
+  if (!geminiApiKey && !groqApiKey) {
+    return res.status(500).json({
+      error: 'No API keys configured. Add GEMINI_API_KEY or GROQ_API_KEY to the server or pass it from client settings.'
+    });
+  }
+
+  // 1. If Gemini API key is configured, evaluate pronunciation directly using Gemini 2.5 Flash
+  if (geminiApiKey && targetSentence && targetWord) {
+    try {
+      console.log('Evaluating pronunciation directly with Gemini 2.5 Flash...');
+      const { GoogleGenAI } = require('@google/genai');
+      const ai = new GoogleGenAI({ apiKey: geminiApiKey });
+
+      // Clean the audio mimeType
+      const cleanMimeType = (mimeType || 'audio/webm').split(';')[0]; // Gemini is strict on MIME type (no codecs parameter)
+
+      const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: [
+          {
+            inlineData: {
+              mimeType: cleanMimeType,
+              data: audio
+            }
+          },
+          `Analyze this audio recording of a user pronouncing the following English sentence:
+"${targetSentence}"
+Focus particularly on the target word: "${targetWord}"
+
+Verify if the user spoke the sentence correctly, clearly, and in order.
+Specifically:
+1. Did the user mispronounce any words?
+2. Did they skip any words or add extra words that alter the meaning/flow?
+3. Did they pronounce the target word "${targetWord}" correctly? Be very precise and strict about correct pronunciation of "${targetWord}".
+
+Return a JSON object with:
+- "correct": true if the pronunciation is accurate and all words in the sentence were spoken correctly. false otherwise.
+- "failedWords": a list of words from the target sentence that were mispronounced, skipped, or spoken incorrectly (specifically include "${targetWord}" in this list if it was not pronounced correctly).
+- "hint": a short, helpful feedback message in Hindi/Hinglish (e.g. "Focus on pronouncing '${targetWord}' correctly", or "Say every word clearly, in order", or a friendly Hindi/Hinglish tip). Keep it supportive but precise.`
+        ],
+        config: {
+          responseMimeType: 'application/json',
+          responseSchema: {
+            type: 'OBJECT',
+            properties: {
+              correct: { type: 'BOOLEAN' },
+              failedWords: {
+                type: 'ARRAY',
+                items: { type: 'STRING' }
+              },
+              hint: { type: 'STRING' }
+            },
+            required: ['correct', 'failedWords', 'hint']
+          }
+        }
+      });
+
+      console.log('Gemini pronunciation check response:', response.text);
+      const evaluation = JSON.parse(response.text);
+      return res.json({ evaluation });
+
+    } catch (err) {
+      console.warn('Gemini pronunciation evaluation failed; trying Groq Whisper fallback if available.', err.message);
+      if (!groqApiKey) {
+        return res.status(500).json({ error: 'Pronunciation evaluation failed', details: err.message });
+      }
+    }
+  }
+
+  // 2. Fall back to Groq Whisper transcription
+  try {
+    const audioBuffer = Buffer.from(audio, 'base64');
+    if (audioBuffer.length < 1000) {
+      return res.status(400).json({ error: 'Audio recording was too short. Please try again.' });
+    }
+
+    const GroqSDK = require('groq-sdk');
+    const Groq = GroqSDK.default || GroqSDK;
+    const toFile = GroqSDK.toFile;
+    const groq = new Groq({ apiKey: groqApiKey });
+
+    const extension = (mimeType || '').includes('mp4') ? 'audio.mp4' : 'audio.webm';
+    const file = await toFile(audioBuffer, extension, { type: mimeType || 'audio/webm' });
+
+    const transcription = await groq.audio.transcriptions.create({
+      file,
+      model: 'whisper-large-v3-turbo',
+      language: 'en',
+      temperature: 0,
+      response_format: 'json'
+    });
+
+    const transcript = String(transcription.text || '').trim();
+    if (!transcript) {
+      return res.status(422).json({ error: 'Could not detect any speech. Please speak clearly and try again.' });
+    }
+
+    console.log('Groq Whisper transcript:', transcript);
+    res.json({ transcript });
+  } catch (error) {
+    console.error('Pronunciation transcription error:', error.message);
+    res.status(500).json({ error: 'Failed to transcribe speech', details: error.message });
+  }
+});
+
 // Main endpoint to generate sentences
 app.get('/api/sentences', async (req, res) => {
   const word = req.query.word;
@@ -64,13 +191,10 @@ Example output format:
 ["Sentence 1 with word", "Sentence 2 with word", "Sentence 3 with word", "Sentence 4 with word", "Sentence 5 with word"]`;
 
   // Support client-passed API keys from request headers as overrides
-  const clientGroqKey = req.headers['x-groq-api-key'];
   const clientGeminiKey = req.headers['x-gemini-api-key'];
 
-  const rawGroqKey = clientGroqKey || process.env.GROQ_API_KEY || '';
+  const groqApiKey = getGroqApiKey(req);
   const rawGeminiKey = clientGeminiKey || process.env.GEMINI_API_KEY || '';
-
-  const groqApiKey = rawGroqKey.trim().replace(/[\r\n\s]+/g, "");
   const geminiApiKey = rawGeminiKey.trim().replace(/[\r\n\s]+/g, "");
 
   try {

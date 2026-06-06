@@ -1973,70 +1973,263 @@ document.addEventListener("DOMContentLoaded", () => {
 
   let speechRecognition = null;
   let activeRecognitionBtn = null;
+  let practiceRecordCancel = null;
 
   function startSpeechRecognition(targetSentence, buttonEl, feedbackEl, guideBtnEl, targetWord) {
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      showToast("Speech recognition is not supported in this browser. Please use Chrome, Edge, or Safari.");
-      return;
+    if (practiceRecordCancel) {
+      practiceRecordCancel();
+      practiceRecordCancel = null;
+      if (activeRecognitionBtn === buttonEl) {
+        resetPracticeRecordButton(buttonEl);
+        activeRecognitionBtn = null;
+        return;
+      }
     }
 
     if (speechRecognition) {
       speechRecognition.stop();
       if (activeRecognitionBtn === buttonEl) {
-        return; // toggle off
+        return;
       }
+    }
+
+    if (!navigator.mediaDevices?.getUserMedia) {
+      showToast("Microphone access is not supported in this browser.");
+      return;
     }
 
     activeRecognitionBtn = buttonEl;
     buttonEl.className = "record-speech-btn recording";
     buttonEl.innerHTML = '<i class="fa-solid fa-microphone-lines"></i>';
-    buttonEl.setAttribute("title", "Listening...");
+    buttonEl.setAttribute("title", "Listening... (tap again to cancel)");
 
     feedbackEl.classList.add("hidden");
     feedbackEl.innerHTML = "";
 
+    startGroqPronunciationCheck(targetSentence, buttonEl, feedbackEl, guideBtnEl, targetWord);
+  }
+
+  async function startGroqPronunciationCheck(targetSentence, buttonEl, feedbackEl, guideBtnEl, targetWord) {
+    try {
+      const audioBlob = await recordPracticeAudio();
+      practiceRecordCancel = null;
+
+      buttonEl.setAttribute("title", "Checking pronunciation...");
+      const result = await transcribePracticeAudio(audioBlob, targetSentence, targetWord);
+      console.log("Pronunciation check result:", result);
+
+      let evaluation;
+      if (result.evaluation) {
+        evaluation = result.evaluation;
+      } else {
+        evaluation = evaluateSpeechTranscript(targetSentence, result.transcript || "", targetWord);
+      }
+      showPracticeSpeechResult(evaluation, buttonEl, feedbackEl, guideBtnEl);
+    } catch (err) {
+      practiceRecordCancel = null;
+
+      if (err.message === "RECORDING_CANCELLED") {
+        resetPracticeRecordButton(buttonEl);
+        activeRecognitionBtn = null;
+        return;
+      }
+
+      console.warn("Groq pronunciation check failed; falling back to browser speech recognition.", err);
+      startBrowserTranscriptFallback(targetSentence, buttonEl, feedbackEl, guideBtnEl, targetWord);
+    } finally {
+      if (activeRecognitionBtn === buttonEl && !speechRecognition) {
+        activeRecognitionBtn = null;
+      }
+    }
+  }
+
+  function recordPracticeAudio() {
+    const SILENCE_THRESHOLD = 12;
+    const SILENCE_MS = 1400;
+    const MIN_RECORD_MS = 800;
+    const MAX_RECORD_MS = 12000;
+
+    return new Promise(async (resolve, reject) => {
+      let stream = null;
+      let mediaRecorder = null;
+      let audioContext = null;
+      let analyser = null;
+      let rafId = null;
+      let maxTimeout = null;
+      const chunks = [];
+      let cancelled = false;
+      let speechDetected = false;
+      let silenceStart = null;
+      const recordStart = Date.now();
+
+      const cleanup = () => {
+        if (rafId) cancelAnimationFrame(rafId);
+        clearTimeout(maxTimeout);
+        stream?.getTracks().forEach(track => track.stop());
+        if (audioContext) audioContext.close().catch(() => {});
+        practiceRecordCancel = null;
+      };
+
+      practiceRecordCancel = () => {
+        if (cancelled) return;
+        cancelled = true;
+        if (mediaRecorder?.state === "recording") {
+          mediaRecorder.stop();
+        } else {
+          cleanup();
+        }
+        reject(new Error("RECORDING_CANCELLED"));
+      };
+
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+        const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+          ? "audio/webm;codecs=opus"
+          : (MediaRecorder.isTypeSupported("audio/mp4") ? "audio/mp4" : "");
+
+        mediaRecorder = mimeType
+          ? new MediaRecorder(stream, { mimeType })
+          : new MediaRecorder(stream);
+
+        mediaRecorder.ondataavailable = (event) => {
+          if (event.data.size > 0) chunks.push(event.data);
+        };
+
+        mediaRecorder.onstop = () => {
+          cleanup();
+          if (cancelled) return;
+          if (chunks.length === 0) {
+            reject(new Error("No audio captured. Please try again."));
+            return;
+          }
+          resolve(new Blob(chunks, { type: mediaRecorder.mimeType || mimeType || "audio/webm" }));
+        };
+
+        mediaRecorder.onerror = () => {
+          cleanup();
+          reject(new Error("Recording failed"));
+        };
+
+        audioContext = new AudioContext();
+        const source = audioContext.createMediaStreamSource(stream);
+        analyser = audioContext.createAnalyser();
+        analyser.fftSize = 512;
+        source.connect(analyser);
+
+        mediaRecorder.start(250);
+
+        const checkLevel = () => {
+          if (cancelled || mediaRecorder.state !== "recording") return;
+
+          const data = new Uint8Array(analyser.fftSize);
+          analyser.getByteTimeDomainData(data);
+
+          let sum = 0;
+          for (let i = 0; i < data.length; i++) {
+            const sample = data[i] - 128;
+            sum += sample * sample;
+          }
+          const rms = Math.sqrt(sum / data.length);
+
+          if (rms > SILENCE_THRESHOLD) {
+            speechDetected = true;
+            silenceStart = null;
+          } else if (speechDetected && Date.now() - recordStart > MIN_RECORD_MS) {
+            if (!silenceStart) silenceStart = Date.now();
+            else if (Date.now() - silenceStart >= SILENCE_MS) {
+              mediaRecorder.stop();
+              return;
+            }
+          }
+
+          rafId = requestAnimationFrame(checkLevel);
+        };
+
+        rafId = requestAnimationFrame(checkLevel);
+        maxTimeout = setTimeout(() => {
+          if (mediaRecorder.state === "recording") mediaRecorder.stop();
+        }, MAX_RECORD_MS);
+      } catch (err) {
+        cleanup();
+        reject(err);
+      }
+    });
+  }
+
+  function blobToBase64(blob) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const result = reader.result;
+        if (typeof result !== "string") {
+          reject(new Error("Failed to read audio recording"));
+          return;
+        }
+        resolve(result.split(",")[1]);
+      };
+      reader.onerror = () => reject(new Error("Failed to read audio recording"));
+      reader.readAsDataURL(blob);
+    });
+  }
+
+  async function transcribePracticeAudio(audioBlob, targetSentence, targetWord) {
+    const headers = { "Content-Type": "application/json" };
+    const groqKey = localStorage.getItem("ph_groq_api_key") || localStorage.getItem("ph_grok_api_key");
+    if (groqKey) headers["x-groq-api-key"] = groqKey;
+    const geminiKey = localStorage.getItem("ph_gemini_api_key");
+    if (geminiKey) headers["x-gemini-api-key"] = geminiKey;
+
+    const response = await fetch(`${BACKEND_URL}/api/pronunciation-check`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        audio: await blobToBase64(audioBlob),
+        mimeType: audioBlob.type || "audio/webm",
+        targetSentence,
+        targetWord
+      })
+    });
+
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(data.error || "Speech transcription failed");
+    }
+    return data;
+  }
+
+  function startBrowserTranscriptFallback(targetSentence, buttonEl, feedbackEl, guideBtnEl, targetWord) {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      resetPracticeRecordButton(buttonEl);
+      activeRecognitionBtn = null;
+      showPracticeSpeechResult({
+        correct: false,
+        hint: "Speech check unavailable. Add GROQ_API_KEY on the server for practice scoring."
+      }, buttonEl, feedbackEl, guideBtnEl);
+      showToast("Groq API key is not configured, and browser speech recognition is unavailable.");
+      return;
+    }
+
     speechRecognition = new SpeechRecognition();
-    speechRecognition.lang = 'en-US';
+    speechRecognition.lang = "en-US";
     speechRecognition.continuous = false;
     speechRecognition.interimResults = false;
 
     speechRecognition.onresult = (event) => {
       const spokenText = event.results[0][0].transcript;
-      console.log("Spoken sentence:", spokenText);
+      console.log("Browser speech transcript:", spokenText);
 
-      const isCorrect = verifySpeech(targetSentence, spokenText, targetWord);
-
-      if (isCorrect) {
-        buttonEl.className = "record-speech-btn success";
-        buttonEl.innerHTML = '<i class="fa-solid fa-check"></i>';
-        buttonEl.setAttribute("title", "Pronounced Correctly!");
-
-        const msg = "Sahi Pakde hain 😊";
-        feedbackEl.className = "sentence-feedback success";
-        feedbackEl.innerHTML = `<i class="fa-solid fa-circle-check"></i> <span>${msg}</span>`;
-        feedbackEl.classList.remove("hidden");
-        guideBtnEl.classList.add("hidden");
-      } else {
-        // Change button to a retry icon (circular arrow) as requested
-        buttonEl.className = "record-speech-btn failed";
-        buttonEl.innerHTML = '<i class="fa-solid fa-rotate-right"></i>';
-        buttonEl.setAttribute("title", "Retry Speaking");
-
-        const msg = "wapas se try karo 🙂";
-        feedbackEl.className = "sentence-feedback failed";
-        feedbackEl.innerHTML = `<i class="fa-solid fa-triangle-exclamation"></i> <span>${msg}</span>`;
-        feedbackEl.classList.remove("hidden");
-        guideBtnEl.classList.remove("hidden"); // reveal listen speaker
-      }
+      const evaluation = evaluateSpeechTranscript(targetSentence, spokenText, targetWord);
+      evaluation.approximate = true;
+      showPracticeSpeechResult(evaluation, buttonEl, feedbackEl, guideBtnEl);
     };
 
     speechRecognition.onerror = (e) => {
       console.error("Speech recognition error:", e);
-      buttonEl.className = "record-speech-btn";
-      buttonEl.innerHTML = '<i class="fa-solid fa-microphone"></i>';
-      buttonEl.setAttribute("title", "Practice Speaking");
-      if (e.error !== 'aborted') {
+      resetPracticeRecordButton(buttonEl);
+      activeRecognitionBtn = null;
+      if (e.error !== "aborted") {
         showToast(`Speech recognition error: ${e.error}`);
       }
     };
@@ -2045,131 +2238,160 @@ document.addEventListener("DOMContentLoaded", () => {
       speechRecognition = null;
       activeRecognitionBtn = null;
       if (buttonEl.className === "record-speech-btn recording") {
-        buttonEl.className = "record-speech-btn";
-        buttonEl.innerHTML = '<i class="fa-solid fa-microphone"></i>';
-        buttonEl.setAttribute("title", "Practice Speaking");
+        resetPracticeRecordButton(buttonEl);
       }
     };
 
     speechRecognition.start();
   }
 
-  function verifySpeech(target, spoken, targetWord) {
-    const tWords = normalizeSpeechWords(target);
-    const sWords = normalizeSpeechWords(spoken);
-    const targetCandidates = normalizeSpeechWords(targetWord);
-    const cleanTargetWord = targetCandidates[0] || "";
+  function normalizePracticeWord(word) {
+    return String(word || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+  }
 
-    if (tWords.length === 0 || sWords.length === 0 || !cleanTargetWord) return false;
+  function isTargetWordMatch(spokenWord, targetWord) {
+    const spoken = normalizePracticeWord(spokenWord);
+    const target = normalizePracticeWord(targetWord);
+    if (!spoken || !target) return false;
+    return spoken === target ||
+      spoken === `${target}s` ||
+      (target.endsWith("s") && spoken === target.slice(0, -1));
+  }
 
-    // Browser speech recognition often returns homophones or small spelling variants.
-    // Keep the target word important, but compare it fuzzily so correct speech is not rejected unfairly.
-    const targetIndex = tWords.findIndex(w => wordsSoundClose(w, cleanTargetWord));
-    const hasTargetWord = sWords.some(w => wordsSoundClose(w, cleanTargetWord));
-    const targetMatchedByContext = targetIndex !== -1 && hasNearbySequenceMatch(tWords, sWords, targetIndex);
+  function isWordFlexMatch(word1, word2) {
+    const w1 = normalizePracticeWord(word1);
+    const w2 = normalizePracticeWord(word2);
+    if (!w1 || !w2) return false;
+    return w1 === w2 ||
+      w1 === `${w2}s` ||
+      w2 === `${w1}s` ||
+      (w1.endsWith("s") && w1.slice(0, -1) === w2) ||
+      (w2.endsWith("s") && w2.slice(0, -1) === w1) ||
+      w1 === `${w2}ing` ||
+      w2 === `${w1}ing` ||
+      w1 === `${w2}ed` ||
+      w2 === `${w1}ed`;
+  }
 
-    if (!hasTargetWord && !targetMatchedByContext) {
-      console.log(`Speech verification failed: Spoken text did not contain a close match for target word "${targetWord}".`, { target, spoken, tWords, sWords });
-      return false;
+  function evaluateSpeechTranscript(target, spoken, targetWord) {
+    const tWords = target.toLowerCase().replace(/[^\w\s]/g, "").split(/\s+/).filter(Boolean);
+    const sWords = spoken.toLowerCase().replace(/[^\w\s]/g, "").split(/\s+/).filter(Boolean);
+
+    if (tWords.length === 0 || sWords.length === 0) {
+      return { correct: false, failedWords: tWords, hint: "Could not hear the full sentence." };
     }
 
-    let matchCount = 0;
-    let sIdx = 0;
+    const n = tWords.length;
+    const m = sWords.length;
+    const dp = Array(n + 1).fill(null).map(() => Array(m + 1).fill(0));
 
-    for (let i = 0; i < tWords.length; i++) {
-      const foundIdx = findCloseWordIndex(tWords[i], sWords, sIdx);
-      if (foundIdx !== -1) {
-        matchCount++;
-        sIdx = foundIdx + 1; // preserve sentence order without demanding exact transcription
+    for (let i = 0; i <= n; i++) dp[i][0] = i;
+    for (let j = 0; j <= m; j++) dp[0][j] = j;
+
+    for (let i = 1; i <= n; i++) {
+      for (let j = 1; j <= m; j++) {
+        if (isWordFlexMatch(tWords[i - 1], sWords[j - 1])) {
+          dp[i][j] = dp[i - 1][j - 1];
+        } else {
+          dp[i][j] = Math.min(
+            dp[i - 1][j] + 1,    // deletion
+            dp[i][j - 1] + 1,    // insertion
+            dp[i - 1][j - 1] + 1  // substitution
+          );
+        }
       }
     }
 
-    const ratio = matchCount / tWords.length;
-    const allowedMisses = tWords.length <= 5 ? 1 : 2;
-    const enoughWordsMatched = matchCount >= Math.max(1, tWords.length - allowedMisses);
-    const enoughRatioMatched = ratio >= (tWords.length <= 6 ? 0.78 : 0.82);
+    let i = n;
+    let j = m;
+    const failedWords = [];
+    let insertionsCount = 0;
 
-    console.log("Speech verification result:", { target, spoken, matchCount, total: tWords.length, ratio });
-    return enoughWordsMatched || enoughRatioMatched;
-  }
+    while (i > 0 || j > 0) {
+      if (i > 0 && j > 0 && isWordFlexMatch(tWords[i - 1], sWords[j - 1])) {
+        i--;
+        j--;
+      } else if (j > 0 && (i === 0 || dp[i][j] === dp[i][j - 1] + 1)) {
+        insertionsCount++;
+        j--;
+      } else if (i > 0 && (j === 0 || dp[i][j] === dp[i - 1][j] + 1)) {
+        failedWords.push(tWords[i - 1]);
+        i--;
+      } else {
+        failedWords.push(tWords[i - 1]);
+        i--;
+        j--;
+      }
+    }
 
-  function normalizeSpeechWords(text) {
-    return String(text || "")
-      .toLowerCase()
-      .replace(/[’']/g, "")
-      .replace(/\bcan\s+not\b/g, "cannot")
-      .replace(/\bgoing\s+to\b/g, "gonna")
-      .replace(/[^a-z0-9\s]/g, " ")
-      .split(/\s+/)
-      .filter(Boolean)
-      .map(normalizeSpeechWord);
-  }
+    failedWords.reverse();
 
-  function normalizeSpeechWord(word) {
-    const aliases = {
-      too: "to",
-      two: "to",
-      for: "four",
-      won: "one",
-      red: "read",
-      reed: "read",
-      write: "right",
-      sea: "see",
-      here: "hear",
-      there: "their",
-      theyre: "their",
-      your: "youre",
-      practise: "practice"
+    // Verify if the target word itself is present in the spoken words
+    const hasTargetWord = sWords.some(w => isTargetWordMatch(w, targetWord));
+    if (!hasTargetWord && !failedWords.includes(targetWord.toLowerCase())) {
+      failedWords.push(targetWord.toLowerCase());
+    }
+
+    // A sentence is marked correct if:
+    // 1. No target words were skipped or mispronounced (failedWords is empty)
+    // 2. Extra spoken words (insertionsCount) do not exceed 2 words or 25% of target length
+    const allowedInsertions = Math.max(2, Math.floor(n * 0.25));
+    const correct = failedWords.length === 0 && insertionsCount <= allowedInsertions;
+
+    let hint = "";
+    if (!correct) {
+      if (failedWords.length > 0) {
+        hint = "Say every word clearly, in order.";
+      } else if (insertionsCount > allowedInsertions) {
+        hint = "Try to avoid extra words or background noise.";
+      }
+    }
+
+    console.log("Speech transcript evaluation:", { target, spoken, failedWords, insertionsCount, correct });
+    return {
+      correct,
+      failedWords,
+      hint
     };
-    const normalized = aliases[word] || word;
-    return normalized.endsWith("s") && normalized.length > 4 ? normalized.slice(0, -1) : normalized;
   }
 
-  function findCloseWordIndex(targetWord, spokenWords, startIdx) {
-    for (let i = startIdx; i < spokenWords.length; i++) {
-      if (wordsSoundClose(targetWord, spokenWords[i])) return i;
-    }
-    return -1;
-  }
+  function showPracticeSpeechResult(evaluation, buttonEl, feedbackEl, guideBtnEl) {
+    const { correct, failedWords = [], hint = "", approximate = false } = evaluation;
 
-  function wordsSoundClose(a, b) {
-    if (!a || !b) return false;
-    if (a === b) return true;
-    if (a.length >= 4 && b.length >= 4 && (a.startsWith(b) || b.startsWith(a))) return true;
+    if (correct) {
+      buttonEl.className = "record-speech-btn success";
+      buttonEl.innerHTML = '<i class="fa-solid fa-check"></i>';
+      buttonEl.setAttribute("title", "Pronounced Correctly!");
 
-    const maxLen = Math.max(a.length, b.length);
-    if (maxLen <= 3) return false;
+      const msg = approximate
+        ? "Sentence matched (basic text check only)"
+        : "Sahi Pakde hain 😊";
+      feedbackEl.className = "sentence-feedback success";
+      feedbackEl.innerHTML = `<i class="fa-solid fa-circle-check"></i> <span>${msg}</span>`;
+      feedbackEl.classList.remove("hidden");
+      guideBtnEl.classList.add("hidden");
+    } else {
+      buttonEl.className = "record-speech-btn failed";
+      buttonEl.innerHTML = '<i class="fa-solid fa-rotate-right"></i>';
+      buttonEl.setAttribute("title", "Retry Speaking");
 
-    const distance = levenshteinDistance(a, b);
-    const allowedDistance = maxLen <= 5 ? 1 : 2;
-    return distance <= allowedDistance;
-  }
-
-  function hasNearbySequenceMatch(targetWords, spokenWords, targetIndex) {
-    const before = targetWords[targetIndex - 1];
-    const after = targetWords[targetIndex + 1];
-    const beforeMatched = before ? spokenWords.some(w => wordsSoundClose(before, w)) : true;
-    const afterMatched = after ? spokenWords.some(w => wordsSoundClose(after, w)) : true;
-    return beforeMatched && afterMatched;
-  }
-
-  function levenshteinDistance(a, b) {
-    const dp = Array.from({ length: a.length + 1 }, () => Array(b.length + 1).fill(0));
-    for (let i = 0; i <= a.length; i++) dp[i][0] = i;
-    for (let j = 0; j <= b.length; j++) dp[0][j] = j;
-
-    for (let i = 1; i <= a.length; i++) {
-      for (let j = 1; j <= b.length; j++) {
-        const cost = a[i - 1] === b[j - 1] ? 0 : 1;
-        dp[i][j] = Math.min(
-          dp[i - 1][j] + 1,
-          dp[i][j - 1] + 1,
-          dp[i - 1][j - 1] + cost
-        );
+      let msg = hint || "wapas se try karo 🙂";
+      if (failedWords.length > 0) {
+        const wordList = failedWords.map(w => `"${w}"`).join(", ");
+        msg = `Focus on: ${wordList}`;
       }
-    }
 
-    return dp[a.length][b.length];
+      feedbackEl.className = "sentence-feedback failed";
+      feedbackEl.innerHTML = `<i class="fa-solid fa-triangle-exclamation"></i> <span>${msg}</span>`;
+      feedbackEl.classList.remove("hidden");
+      guideBtnEl.classList.remove("hidden");
+    }
+  }
+
+  function resetPracticeRecordButton(buttonEl) {
+    buttonEl.className = "record-speech-btn";
+    buttonEl.innerHTML = '<i class="fa-solid fa-microphone"></i>';
+    buttonEl.setAttribute("title", "Practice Speaking");
   }
 
   // --- DYNAMIC INTERACTIVE SENTENCE READER WITH REAL-TIME SPEECH SYNTHESIS WORD HIGHLIGHTING ---
